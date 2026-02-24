@@ -10,25 +10,28 @@ from serpapi import GoogleSearch
 
 # --- Setup ---
 load_dotenv()
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-genai.configure()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # --- Load Gemini Model ---
-model = genai.GenerativeModel(model_name="models/gemini-1.5-flash-latest")
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 # --- Constants ---
 MEMORY_FILE = "agent_memory.json"
 
 # --- MEMORY FUNCTIONS ---
+
+
 def load_memory():
     if not os.path.exists(MEMORY_FILE):
         return {}
     with open(MEMORY_FILE, "r") as f:
         return json.load(f)
 
+
 def save_memory(memory):
     with open(MEMORY_FILE, "w") as f:
         json.dump(memory, f, indent=4)
+
 
 def list_saved_ideas(memory):
     if not memory:
@@ -37,13 +40,16 @@ def list_saved_ideas(memory):
     print("\n📚 Saved Startup Ideas:")
     for idx, idea in enumerate(memory.keys(), 1):
         print(f"{idx}. {idea}")
-        
+
+
 def get_past_result(memory, idea):
     return memory.get(idea.strip().lower())
+
 
 def store_result(memory, idea, data):
     memory[idea.strip().lower()] = data
     save_memory(memory)
+
 
 def delete_idea(memory, idea):
     idea_key = idea.strip().lower()
@@ -54,6 +60,7 @@ def delete_idea(memory, idea):
     else:
         print("❌ Idea not found in memory.")
 
+
 def list_saved_ideas(memory):
     if not memory:
         print("🗃️ No saved ideas yet.")
@@ -63,6 +70,8 @@ def list_saved_ideas(memory):
         print(f"{idx}. {idea}")
 
 # serpapi tool
+
+
 def search_with_serpapi(query, num_results=5):
     params = {
         "engine": "google",
@@ -182,7 +191,6 @@ Respond in this format:
             return f"Error generating tech stack: {e}"
 
 
-
 # --- SWOT Generator ---
 def generate_swot_analysis(full_prompt: str) -> str:
     try:
@@ -192,6 +200,8 @@ def generate_swot_analysis(full_prompt: str) -> str:
         return f"Error generating SWOT analysis: {e}"
 
 # --- PDF Exporter ---
+
+
 def save_swot_to_pdf(startup_idea: str, swot_text: str):
     filename = startup_idea.strip().replace(" ", "_") + "_SWOT.pdf"
     c = canvas.Canvas(filename, pagesize=letter)
@@ -215,11 +225,14 @@ def save_swot_to_pdf(startup_idea: str, swot_text: str):
     print(f"\n✅ SWOT analysis saved as PDF: {filename}")
 
 # --- Main Agent Loop ---
+
+
 def run_agent():
     print("🚀 Welcome to the Startup Idea Validator Agent!")
     memory = load_memory()
 
-    choice = input("\n📘 What would you like to do? (n)ew idea, (l)ist saved, (d)elete, or (q)uit: ").lower()
+    choice = input(
+        "\n📘 What would you like to do? (n)ew idea, (l)ist saved, (d)elete, or (q)uit: ").lower()
     if choice == 'l':
         list_saved_ideas(memory)
         return
@@ -311,9 +324,11 @@ Respond in this format:
         "swot": swot
     })
 
-    choice = input("\n💾 Do you want to save this SWOT analysis as a PDF? (y/n): ")
+    choice = input(
+        "\n💾 Do you want to save this SWOT analysis as a PDF? (y/n): ")
     if choice.lower() == 'y':
         save_swot_to_pdf(startup_idea, swot)
+
 
 if __name__ == "__main__":
     run_agent()
