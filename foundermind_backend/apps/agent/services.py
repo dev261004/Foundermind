@@ -1,6 +1,7 @@
 from apps.agent.executor import ToolExecutor
 from apps.agent.models import AgentRun, IdeaAnalysis
 from apps.ideas.models import Idea
+from apps.agent.orchestrator import StartupOrchestrator
 
 
 class StartupAnalysisService:
@@ -20,11 +21,12 @@ class StartupAnalysisService:
         idea_text = idea_obj.title
 
         # 2️⃣ Execute Tools
-        executor = ToolExecutor()
-        execution_data = executor.execute(idea_text)
+        orchestrator = StartupOrchestrator()
+        execution_data = orchestrator.run(idea_text)
 
         results = execution_data["results"]
         execution_log = execution_data["execution_log"]
+        critique = execution_data["critique"]
 
         # 3️⃣ Store Analysis Results
         analysis = IdeaAnalysis(
@@ -43,7 +45,8 @@ class StartupAnalysisService:
         agent_run = AgentRun(
             idea_id=str(idea_id),
             execution_log=execution_log,
-            status="completed"
+            status="completed",
+            critique=critique
         )
         agent_run.save()
 

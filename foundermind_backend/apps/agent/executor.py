@@ -1,5 +1,3 @@
-import time
-
 from apps.agent.tools.search import search_similar_startups
 from apps.agent.tools.market import search_market_data
 from apps.agent.tools.funding import search_funding_info
@@ -8,95 +6,73 @@ from apps.agent.tools.customer import generate_customer_profile
 from apps.agent.tools.techstack import is_technical_startup, suggest_tech_stack
 from apps.agent.tools.swot import generate_swot_analysis
 
+
 class ToolExecutor:
     """
-    Executes startup validation tools in structured sequence.
-    Designed to later support planner-driven execution.
+    Executes tools dynamically based on planner output.
     """
 
-    def execute(self, idea: str):
+    def execute_with_plan(self, idea: str, plan: dict):
+
         execution_log = []
         results = {}
 
-        # Step 1: Similar Startups
-        start = time.time()
-        similar = search_similar_startups(idea)
-        results["similar_startups"] = similar
-        execution_log.append({
-            "step": 1,
-            "tool": "search_similar_startups",
-            "duration_ms": int((time.time() - start) * 1000)
-        })
+        for step in plan.get("steps", []):
+            tool_name = step.get("tool")
 
-        # Step 2: Market Data
-        start = time.time()
-        market = search_market_data(idea)
-        results["market_data"] = market
-        execution_log.append({
-            "step": 2,
-            "tool": "search_market_data",
-            "duration_ms": int((time.time() - start) * 1000)
-        })
+            try:
+                if tool_name == "search_similar_startups":
+                    output = search_similar_startups(idea)
+                    results["similar_startups"] = output
 
-        # Step 3: Funding Info
-        start = time.time()
-        funding = search_funding_info(idea)
-        results["funding_info"] = funding
-        execution_log.append({
-            "step": 3,
-            "tool": "search_funding_info",
-            "duration_ms": int((time.time() - start) * 1000)
-        })
+                elif tool_name == "search_market_data":
+                    output = search_market_data(idea)
+                    results["market_data"] = output
 
-        # Step 4: Monetization
-        start = time.time()
-        monetization = generate_monetization_strategy(idea)
-        results["monetization"] = monetization
-        execution_log.append({
-            "step": 4,
-            "tool": "generate_monetization_strategy",
-            "duration_ms": int((time.time() - start) * 1000)
-        })
+                elif tool_name == "search_funding_info":
+                    output = search_funding_info(idea)
+                    results["funding_info"] = output
 
-        # Step 5: Customer Profile
-        start = time.time()
-        customer = generate_customer_profile(idea)
-        results["customer_profile"] = customer
-        execution_log.append({
-            "step": 5,
-            "tool": "generate_customer_profile",
-            "duration_ms": int((time.time() - start) * 1000)
-        })
+                elif tool_name == "generate_monetization_strategy":
+                    output = generate_monetization_strategy(idea)
+                    results["monetization"] = output
 
-        # Step 6: Tech Stack (conditional)
-        start = time.time()
-        if is_technical_startup(idea):
-            tech_stack = suggest_tech_stack(idea)
-            results["tech_stack"] = tech_stack
-        else:
-            results["tech_stack"] = "Not a technical startup."
-        execution_log.append({
-            "step": 6,
-            "tool": "suggest_tech_stack",
-            "duration_ms": int((time.time() - start) * 1000)
-        })
+                elif tool_name == "generate_customer_profile":
+                    output = generate_customer_profile(idea)
+                    results["customer_profile"] = output
 
-        # Step 7: SWOT
-        start = time.time()
-        swot = generate_swot_analysis(
-            idea,
-            similar,
-            market,
-            funding,
-            monetization,
-            customer
-        )
-        results["swot"] = swot
-        execution_log.append({
-            "step": 7,
-            "tool": "generate_swot_analysis",
-            "duration_ms": int((time.time() - start) * 1000)
-        })
+                elif tool_name == "suggest_tech_stack":
+                    if is_technical_startup(idea):
+                        output = suggest_tech_stack(idea)
+                    else:
+                        output = "Not a technical startup."
+                    results["tech_stack"] = output
+
+                elif tool_name == "generate_swot_analysis":
+                    output = generate_swot_analysis(
+                        idea,
+                        results.get("similar_startups", ""),
+                        results.get("market_data", ""),
+                        results.get("funding_info", ""),
+                        results.get("monetization", ""),
+                        results.get("customer_profile", ""),
+                    )
+                    results["swot"] = output
+
+                else:
+                    output = "Unknown tool"
+
+                execution_log.append({
+                    "tool": tool_name,
+                    "status": "completed"
+                })
+
+            except Exception as e:
+                execution_log.append({
+                    "tool": tool_name,
+                    "status": "failed",
+                    "error": str(e)
+                })
 
         return {
             "results": results,

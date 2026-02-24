@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from .services import StartupAnalysisService
 from core.permissions import jwt_required
 
+
 @api_view(["POST"])
-@jwt_required
 def run_analysis(request):
     idea_id = request.data.get("idea_id")
 
@@ -16,9 +16,3 @@ def run_analysis(request):
         return Response(result)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
-
-
-
-
-
-

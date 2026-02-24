@@ -6,7 +6,7 @@ class AgentRun(me.Document):
     idea_id = me.StringField(required=True)
     execution_log = me.ListField(me.DictField())
     status = me.StringField(default="completed")
-
+    critique = me.DictField()
     created_at = me.DateTimeField(default=datetime.datetime.utcnow)
 
 

@@ -1,0 +1,8 @@
+Django==6.0.2
+djangorestframework==3.16.1
+google_search_results==2.4.2
+mongoengine==0.29.1
+protobuf==6.33.5
+PyJWT==2.11.0
+python-dotenv==1.2.1
+python_bcrypt==0.3.2

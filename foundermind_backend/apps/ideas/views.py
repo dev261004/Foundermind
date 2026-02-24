@@ -7,9 +7,8 @@ from core.permissions import jwt_required
 
 
 @api_view(['POST'])
-@jwt_required
 def create_idea(request):
-    user_email = request.user_email
+    user_email = request.data.get("user_email")
     title = request.data.get("title")
     description = request.data.get("description", "")
 
