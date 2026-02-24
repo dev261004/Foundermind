@@ -1,0 +1,13 @@
+{
+    "type": "service_account",
+    "project_id": "starup-validater-agent",
+    "private_key_id": "1254eff0a2cfe9b59e43178a8e20251927d8a018",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCdogRlzSOcoWa9\ne6niR9Hv9mXIH4tfV9bW9GCaNzvblZzw2lO6Y7TucAdfOwNIMGo9xO2Nt89z6GDl\nvq063FxN+fePz1npOsDJOSLhlG31qH6eDfr0PvWby1+xf7HAh0bdw8Hahyc2ePbN\nG8tMs4GM5Kmv9sN8WPGvWiYy9Pqd3Jrjo3fz+Frd49VSBxh6zQ2IBt8oxGdx4Byv\nSICWNwt3f1wSkTRn8La48NlXkw7am3y7CsDD+OHyZCAtJl7lK6bB6iU9W6NTeTxq\nvYe+LGMeL6/Nlj7PmeOGQukH4HpBkcCYntU1C7bunotm4/LllyHlYw9HqrjmbAQq\n8+RG84DRAgMBAAECggEAE3hysJxhHLS2+wquVjvmy4wU0F5NGc7Aw7ZVxFa0NxBI\n3VsqYmh0bcs6reGdKyqHxO9xJEMjBb8bUOV3gkC7ygnpMUM8aNmP/IrpKxHpbyGL\n2jwB1m98aOz6+fK64vwSncvTQwnUpx7T5UvclbHKe7u21fxV8yMNX0p0U3D9D8iB\nOfM6MpyIgDJt3RIC+uOISygXfFcT6AokNDhjOC20nIcpeObpWD9D2z6Qg71Z1kLz\n7qLVCK1rMHzph37/iOLca2G45zW5Jz1FHaWbKbeigJjAi0AUrlUDq13ekdu/UssZ\nNoChzQK2k58riKL7hjc/W7qOSIFqPOLiBdVlnaK8TQKBgQDYXSnde8ck+xJ2Tkle\nYceZBmQxkQdHzjMZjMkKuK7wrAy0GS/zGCm/mm5H/n+Wulk7k9/wdK/QfJQdjEqC\n59ZUp3vPRE19V+aGg+7lr4t2gN40vhyiqBQ7v5/XSvvBvHezakgCljCJIm3PuZWD\nysfTU4wmqooiy3lNKnFEIYPwewKBgQC6gooLHvTeEstcT4yEh3AOLfHonzdH9PL9\nTe5ilpGZQOiFP5sOjKKP8a9S8XqD3vYAdlzCWOKLwUPp0mXN44Pk1UOJ9zOEWe1V\nxA+ITfqSmp9FvdUiIlhmlftFnE9qfDvLai1yxzFWRC57nKfUzX7F258/zOvgYbAu\nC6D4iRrgIwKBgQCtV+aktfhU3npqIkqRvVEGfqJjO8hTdRZnj+26E0DFPXJoEA3k\neyVnhrh4IaPjBKVdIBo4MaRyKn0YNz+zJT8IT67X3ecfVv8wIh+SEVRwuspMA0w5\n3ONpAxtyh3awPui/65SJzf5QwC6uUAdDsYDrBHKyv8swGUiz1B8u8JMeZQKBgBqN\nTv26UH31CwJ/SK/tYCSEofXOBN63nog1OgTLDrtUpEWkAn0VxGbdr2oNerWfXkI+\nl4ILiWUABJ0bGOcwxqwjOFRB3xGug708BkIPZ+bLIHWbSuZrIU6pd3Y3hI7SVOjm\nmsXGWd3AIyXx7Wq8PpoIZCl/EO2GusAzY50+V5clAoGBANXfDfUFHFZVKrZG2Gik\nHp+Dmr2zN8k1m2+O8ItGsrI+8XzkzWv3fOFYD0qQvBnVoTEiwlr1VQlZ4/ozmbKh\nETFtJYkGVZE/fX65HtqyxpSk9K3aOcnuZe0dVKbABIAKtzMVUwun0cnOLZthvlRN\nYEtzi2epUkR1igZKQwJko+d7\n-----END PRIVATE KEY-----\n",
+    "client_email": "starup-agnet@starup-validater-agent.iam.gserviceaccount.com",
+    "client_id": "106942764795400381660",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/starup-agnet%40starup-validater-agent.iam.gserviceaccount.com",
+    "universe_domain": "googleapis.com"
+  }

@@ -1,26 +1,31 @@
+import bcrypt
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
+
+from .models import User
 from .jwt_utils import generate_access_token, generate_refresh_token
 
 
 @api_view(['POST'])
 def register(request):
-    email = request.data.get('email')
-    password = request.data.get('password')
+    email = request.data.get("email")
+    password = request.data.get("password")
 
     if not email or not password:
-        return Response({"error": "Missing email or password"}, status=400)
+        return Response({"error": "Missing email or password"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if User.objects(email=email):
-        return Response({"error": "User already exists"}, status=400)
+    if User.objects(email=email).first():
+        return Response({"error": "User already exists"}, status=status.HTTP_400_BAD_REQUEST)
 
-    hash_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     user = User(
         email=email,
-        password_hash=hash_pw
+        password_hash=hashed
     )
     user.save()
 
-    # Auto-login after register
     access = generate_access_token(email)
     refresh = generate_refresh_token(email)
 
@@ -34,19 +39,25 @@ def register(request):
 
 @api_view(['POST'])
 def login(request):
-    email = request.data['email']
-    password = request.data['password']
+    email = request.data.get("email")
+    password = request.data.get("password")
+
+    if not email or not password:
+        return Response({"error": "Missing credentials"}, status=status.HTTP_400_BAD_REQUEST)
 
     user = User.objects(email=email).first()
 
-    if user and bcrypt.checkpw(password.encode(), user.password_hash.encode()):
-        access = generate_access_token(email)
-        refresh = generate_refresh_token(email)
+    if not user:
+        return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({
-            "access_token": access,
-            "refresh_token": refresh,
-            "email": email
-        })
+    if not bcrypt.checkpw(password.encode(), user.password_hash.encode()):
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response({"error": "Invalid credentials"}, status=400)
+    access = generate_access_token(email)
+    refresh = generate_refresh_token(email)
+
+    return Response({
+        "access_token": access,
+        "refresh_token": refresh,
+        "email": email
+    })
