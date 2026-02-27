@@ -29,12 +29,22 @@ def run_startup_analysis(self, idea_id: str):
         )
         analysis.save()
 
+        critique = result["critique"]
+
         agent_run.update(
-            status="completed",
-            execution_log=result["execution_log"],
-            critique=result["critique"],
-            analysis_confidence=result.get("analysis_confidence")
-        )
+           status="completed",
+           execution_log=result["execution_log"],
+           critique=critique,
+
+            idea_type=result.get("idea_type"),
+            classification_confidence=result.get("classification_confidence"),
+            analysis_confidence=result.get("analysis_confidence"),
+
+            overall_score=critique.get("overall_score"),
+            weighted_score=result.get("weighted_score"),
+            iterations_used=result.get("iterations_used"),
+            convergence_reason=result.get("convergence_reason"),
+         )
 
         return {"status": "completed"}
 

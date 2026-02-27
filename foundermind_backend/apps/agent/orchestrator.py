@@ -1,7 +1,7 @@
 from apps.agent.planner import PlannerAgent
 from apps.agent.executor import ToolExecutor
 from apps.agent.critic import CriticAgent
-
+from apps.analytics.models import IdeaTypeWeights
 from integrations.gemini_client import generate_text
 
 import json
@@ -183,8 +183,11 @@ class StartupOrchestrator:
         # ---------- Hybrid Classification ----------
         idea_type, classification_confidence, source = hybrid_classify_idea(idea)
 
-        weights = BASE_IDEA_TYPES.get(idea_type, BASE_IDEA_TYPES["general"])
-
+        weight_doc = IdeaTypeWeights.objects(idea_type=idea_type).first()
+        if weight_doc:
+           weights = weight_doc.weights
+        else:
+           weights = BASE_IDEA_TYPES.get(idea_type)
         execution_log.append({
             "type": "idea_classification",
             "idea_type": idea_type,

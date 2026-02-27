@@ -5,9 +5,25 @@ import datetime
 class AgentRun(me.Document):
     idea_id = me.StringField(required=True)
     execution_log = me.ListField(me.DictField())
-    status = me.StringField(default="completed")
+    status = me.StringField(
+        choices=["pending", "running", "completed", "failed"],
+        default="pending"
+    )
     critique = me.DictField()
+    idea_type = me.StringField()
+    classification_confidence = me.FloatField()
+    analysis_confidence = me.FloatField()
+
+    overall_score = me.FloatField()
+    weighted_score = me.FloatField()
+
+    iterations_used = me.IntField()
+    convergence_reason = me.StringField()
+
     created_at = me.DateTimeField(default=datetime.datetime.utcnow)
+    meta = {
+        "ordering": ["-created_at"]
+    }
 
 
 class IdeaAnalysis(me.Document):
