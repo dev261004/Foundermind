@@ -51,3 +51,32 @@ def run_startup_analysis(self, idea_id: str):
     except Exception as e:
         agent_run.update(status="failed", error=str(e))
         raise
+
+from celery import shared_task
+from apps.analytics.drift_detector import DriftDetector
+
+
+@shared_task
+def drift_monitor_task():
+
+    result = DriftDetector.auto_recalibrate_all()
+    return result
+
+from celery import shared_task
+from apps.analytics.drift_detector import DriftDetector
+
+
+@shared_task
+def idea_type_drift_monitor_task():
+
+    result = DriftDetector.auto_recalibrate_per_type()
+    return result
+
+from apps.analytics.tool_drift_detector import ToolDriftDetector
+
+
+@shared_task
+def tool_drift_monitor_task():
+
+    result = ToolDriftDetector.detect_tool_drift()
+    return result

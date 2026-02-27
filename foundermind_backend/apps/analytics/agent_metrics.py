@@ -2,6 +2,7 @@ from apps.agent.models import AgentRun
 from statistics import mean
 from collections import defaultdict
 
+
 class AgentMetricsEngine:
 
     @staticmethod
@@ -120,28 +121,147 @@ class AgentMetricsEngine:
 
         return round(index * 10, 2)
 
+    @staticmethod
+    def section_average_by_idea_type(idea_type):
+        runs = AgentRun.objects(
+            status="completed",
+            idea_type=idea_type
+        )
 
+        section_scores = defaultdict(list)
 
+        for r in runs:
+            critique = r.critique or {}
+            sections = critique.get("section_scores", {})
 
-@staticmethod
-def section_average_by_idea_type(idea_type):
+            for section, score in sections.items():
+                section_scores[section].append(score)
 
-    runs = AgentRun.objects(
-        status="completed",
-        idea_type=idea_type
-    )
+        return {
+            section: round(mean(scores), 2)
+            for section, scores in section_scores.items()
+            if scores
+        }
 
-    section_scores = defaultdict(list)
+    @staticmethod
+    def rolling_average_score(window_size=50):
+        recent_runs = (
+            AgentRun.objects(status="completed")
+            .order_by("-created_at")
+            .limit(window_size)
+        )
 
-    for r in runs:
-        critique = r.critique or {}
-        sections = critique.get("section_scores", {})
+        scores = [r.overall_score for r in recent_runs if r.overall_score]
 
-        for section, score in sections.items():
-            section_scores[section].append(score)
+        return round(mean(scores), 2) if scores else 0
 
-    return {
-        section: round(mean(scores), 2)
-        for section, scores in section_scores.items()
-        if scores
-    }
+    @staticmethod
+    def historical_average_score(skip_recent=50):
+        historical_runs = (
+            AgentRun.objects(status="completed")
+            .order_by("-created_at")
+            .skip(skip_recent)
+        )
+
+        scores = [r.overall_score for r in historical_runs if r.overall_score]
+
+        return round(mean(scores), 2) if scores else 0
+
+    @staticmethod
+    def rolling_average_by_idea_type(idea_type, window_size=30):
+        recent_runs = (
+            AgentRun.objects(
+                status="completed",
+                idea_type=idea_type
+            )
+            .order_by("-created_at")
+            .limit(window_size)
+        )
+
+        scores = [r.overall_score for r in recent_runs if r.overall_score]
+
+        return round(mean(scores), 2) if scores else 0
+
+    @staticmethod
+    def historical_average_by_idea_type(idea_type, skip_recent=30):
+
+        historical_runs = (
+            AgentRun.objects(
+                status="completed",
+                idea_type=idea_type
+            )
+            .order_by("-created_at")
+            .skip(skip_recent)
+        )
+
+        scores = [r.overall_score for r in historical_runs if r.overall_score]
+
+        return round(mean(scores), 2) if scores else 0
+
+    @staticmethod
+    def tool_success_rate(window_size=50):
+
+        recent_runs = (
+            AgentRun.objects(status="completed")
+            .order_by("-created_at")
+            .limit(window_size)
+        )
+
+        tool_stats = {}
+
+        for r in recent_runs:
+            for entry in r.execution_log or []:
+                tool = entry.get("tool")
+                if not tool:
+                    continue
+
+                tool_stats.setdefault(tool, {"total": 0, "success": 0})
+
+                tool_stats[tool]["total"] += 1
+                if entry.get("status") == "completed":
+                    tool_stats[tool]["success"] += 1
+
+        success_rates = {}
+
+        for tool, stats in tool_stats.items():
+            if stats["total"] == 0:
+                continue
+            success_rates[tool] = round(
+                stats["success"] / stats["total"], 3
+            )
+
+        return success_rates
+
+    @staticmethod
+    def historical_tool_success_rate(skip_recent=50):
+
+        historical_runs = (
+            AgentRun.objects(status="completed")
+            .order_by("-created_at")
+            .skip(skip_recent)
+        )
+
+        tool_stats = {}
+
+        for r in historical_runs:
+            for entry in r.execution_log or []:
+                tool = entry.get("tool")
+                if not tool:
+                    continue
+
+                tool_stats.setdefault(tool, {"total": 0, "success": 0})
+
+                tool_stats[tool]["total"] += 1
+                if entry.get("status") == "completed":
+                    tool_stats[tool]["success"] += 1
+
+        success_rates = {}
+
+        for tool, stats in tool_stats.items():
+            if stats["total"] == 0:
+                continue
+            success_rates[tool] = round(
+                stats["success"] / stats["total"], 3
+            )
+
+        return success_rates
