@@ -60,7 +60,12 @@ class ToolExecutor:
                     results["swot"] = output
 
                 else:
-                    output = "Unknown tool"
+                    execution_log.append({
+                     "tool": tool_name,
+                     "status": "failed",
+                     "error": "Unknown tool"
+                     })
+                    continue
 
                 execution_log.append({
                     "tool": tool_name,

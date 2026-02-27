@@ -55,5 +55,6 @@ class StartupAnalysisService:
             "analysis_id": str(analysis.id),
             "agent_run_id": str(agent_run.id),
             "results": results,
-            "execution_log": execution_log
+            "execution_log": execution_log,
+            "critique": critique
         }

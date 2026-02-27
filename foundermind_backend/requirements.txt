@@ -1,4 +1,4 @@
-Django==6.0.2
+Django==5.2.11
 djangorestframework==3.16.1
 google_search_results==2.4.2
 mongoengine==0.29.1
