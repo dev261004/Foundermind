@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   LayoutDashboard,
@@ -22,6 +21,14 @@ interface NavItem {
   href: string
 }
 
+interface SidebarProps {
+  collapsed: boolean
+  mobileOpen: boolean
+  onToggleCollapse: () => void
+  onOpenMobile: () => void
+  onCloseMobile: () => void
+}
+
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "#" },
   { label: "Ideas", icon: Lightbulb, href: "#" },
@@ -30,10 +37,13 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Drift Monitor", icon: Activity, href: "#" },
 ]
 
-export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-
+export function Sidebar({
+  collapsed,
+  mobileOpen,
+  onToggleCollapse,
+  onOpenMobile,
+  onCloseMobile,
+}: SidebarProps) {
   const sidebarWidth = collapsed ? 88 : 280
 
   return (
@@ -50,7 +60,6 @@ export function Sidebar() {
         )}
       >
         <div className="flex h-full flex-col justify-between px-4 py-6">
-          {/* Top Section */}
           <div>
             {/* Logo + Collapse */}
             <div className="flex items-center justify-between mb-10">
@@ -65,6 +74,7 @@ export function Sidebar() {
                     FM
                   </span>
                 </div>
+
                 {!collapsed && (
                   <span className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-white">
                     FounderMind
@@ -72,26 +82,18 @@ export function Sidebar() {
                 )}
               </div>
 
-              {!collapsed && (
-                <button
-                  onClick={() => setCollapsed(true)}
-                  className="p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                >
-                  <PanelLeftClose size={18} />
-                </button>
-              )}
-
-              {collapsed && (
-                <button
-                  onClick={() => setCollapsed(false)}
-                  className="absolute top-6 right-3 p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-                >
+              <button
+                onClick={onToggleCollapse}
+                className="p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+              >
+                {collapsed ? (
                   <PanelLeftOpen size={18} />
-                </button>
-              )}
+                ) : (
+                  <PanelLeftClose size={18} />
+                )}
+              </button>
             </div>
 
-            {/* Navigation */}
             <nav className="space-y-1">
               {NAV_ITEMS.map((item) => (
                 <SidebarItem
@@ -105,7 +107,6 @@ export function Sidebar() {
             </nav>
           </div>
 
-          {/* Bottom Section */}
           <div className="space-y-1">
             <SidebarItem
               icon={Settings}
@@ -125,7 +126,7 @@ export function Sidebar() {
 
       {/* Mobile Trigger */}
       <button
-        onClick={() => setMobileOpen(true)}
+        onClick={onOpenMobile}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm"
       >
         <PanelLeftOpen size={18} />
@@ -135,12 +136,11 @@ export function Sidebar() {
       <AnimatePresence>
         {mobileOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.4 }}
               exit={{ opacity: 0 }}
-              onClick={() => setMobileOpen(false)}
+              onClick={onCloseMobile}
               className="fixed inset-0 bg-black z-40"
             />
 
@@ -171,25 +171,10 @@ export function Sidebar() {
                       label={item.label}
                       href={item.href}
                       collapsed={false}
-                      onClick={() => setMobileOpen(false)}
+                      onClick={onCloseMobile}
                     />
                   ))}
                 </nav>
-              </div>
-
-              <div className="space-y-1">
-                <SidebarItem
-                  icon={Settings}
-                  label="Settings"
-                  href="#"
-                  collapsed={false}
-                />
-                <SidebarItem
-                  icon={User}
-                  label="Profile"
-                  href="#"
-                  collapsed={false}
-                />
               </div>
             </motion.aside>
           </>
