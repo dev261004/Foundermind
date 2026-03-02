@@ -2,9 +2,6 @@ import { apiClient } from "../axios"
 import { IdeaResponse } from "@/types/idea"
 import { StageStatusResponse } from "@/types/agent"
 
-/**
- * Submit new idea
- */
 export interface SubmitIdeaPayload {
   idea: string
   industry?: string
@@ -16,35 +13,35 @@ export interface SubmitIdeaResponse {
 }
 
 export const submitIdea = async (
-  payload: SubmitIdeaPayload
+  payload: SubmitIdeaPayload,
+  signal?: AbortSignal
 ): Promise<SubmitIdeaResponse> => {
   const { data } = await apiClient.post<SubmitIdeaResponse>(
     "/ideas",
-    payload
+    payload,
+    { signal }
   )
   return data
 }
 
-/**
- * Poll idea run status
- */
 export const fetchIdeaStatus = async (
-  ideaId: string
+  ideaId: string,
+  signal?: AbortSignal
 ): Promise<StageStatusResponse> => {
   const { data } = await apiClient.get<StageStatusResponse>(
-    `/ideas/${ideaId}/status`
+    `/ideas/${ideaId}/status`,
+    { signal }
   )
   return data
 }
 
-/**
- * Fetch full idea intelligence result
- */
 export const fetchIdeaResult = async (
-  ideaId: string
+  ideaId: string,
+  signal?: AbortSignal
 ): Promise<IdeaResponse> => {
   const { data } = await apiClient.get<IdeaResponse>(
-    `/ideas/${ideaId}/result`
+    `/ideas/${ideaId}/result`,
+    { signal }
   )
   return data
 }

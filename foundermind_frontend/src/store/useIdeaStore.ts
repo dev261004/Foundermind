@@ -2,12 +2,13 @@ import { create } from "zustand"
 
 type SubmissionStatus = "idle" | "submitting" | "running" | "completed" | "failed"
 
-type Stage =
+export type Stage =
   | "planning"
   | "executing"
   | "critic"
   | "rerun"
   | "final"
+  | "failed"
   | null
 
 interface IdeaState {
