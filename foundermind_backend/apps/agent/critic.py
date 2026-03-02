@@ -93,7 +93,11 @@ Return STRICT JSON only:
 
 Rules:
 - If funding info is unrelated → suggest search_funding_info
-- If market lacks numbers → suggest search_market_data
+- If market lacks numeric data → suggest search_market_data
+- If quantitative model exists:
+    - Validate TAM size realism
+    - Validate CAGR reasonableness (2%–40% typical range)
+    - If opportunity_score inconsistent with TAM/CAGR → penalize
 - If SWOT is generic → suggest generate_swot_analysis
 """
 

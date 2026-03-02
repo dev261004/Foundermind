@@ -3,7 +3,8 @@ from apps.agent.executor import ToolExecutor
 from apps.agent.critic import CriticAgent
 from apps.analytics.models import IdeaTypeWeights
 from integrations.gemini_client import generate_text
-
+from apps.analytics.market_model import MarketModelEngine
+from apps.agent.tools.market import extract_structured_market_data
 import json
 import re
 
@@ -201,6 +202,19 @@ class StartupOrchestrator:
 
         execution_data = executor.execute_with_plan(idea, plan)
         results.update(execution_data["results"])
+
+        # ---------- Quantitative Market Modeling ----------
+        if results.get("market_data"):
+
+           structured_data = extract_structured_market_data(
+            results.get("market_data")
+           )
+
+           if structured_data:
+               market_model = MarketModelEngine.build_market_model(structured_data)
+               results["market_quantitative_model"] = market_model
+           else:
+               results["market_quantitative_model"] = None
         execution_log += execution_data["execution_log"]
 
         critique = critic.review(idea, results)
@@ -255,6 +269,7 @@ class StartupOrchestrator:
             critique,
             classification_confidence
         )
+        
 
         return {
             "idea_type": idea_type,
