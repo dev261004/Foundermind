@@ -4,8 +4,7 @@ export default function IntelligenceEngine(){
 
 return(
 
-<section className="py-32 text-center section-glow">
-
+<section className="pt-32 pb-8 text-center section-glow">
 <h2 className="text-5xl font-bold mb-20">
 FounderMind Intelligence Engine
 </h2>

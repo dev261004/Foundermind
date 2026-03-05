@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-
+import Link from "next/link"
 export default function Navbar() {
   return (
     <nav className="fixed top-0 w-full z-50 backdrop-blur-lg border-b border-white/5">
@@ -16,10 +16,11 @@ export default function Navbar() {
         </motion.h1>
 
         <div className="flex gap-4">
+            <Link href="/login">
           <button className="text-sm text-gray-300 hover:text-white">
             Login
           </button>
-
+</Link>
           <button className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm glow-button">
             Sign Up
           </button>

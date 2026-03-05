@@ -14,10 +14,11 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SidebarItem } from "./SidebarItem"
+import { LucideIcon } from "lucide-react"
 
 interface NavItem {
   label: string
-  icon: React.ElementType
+  icon: LucideIcon
   href: string
 }
 
@@ -54,9 +55,10 @@ export function Sidebar({
         transition={{ duration: 0.25, ease: "easeInOut" }}
         className={cn(
           "hidden lg:flex fixed left-0 top-0 z-40 h-screen flex-col",
-          "border-r border-neutral-200 dark:border-neutral-800",
-          "bg-white dark:bg-neutral-900",
-          "shadow-sm"
+          "border-r border-white/10",
+          "bg-gradient-to-b from-[#050505] via-[#070707] to-[#050505]",
+          "backdrop-blur-xl",
+          "shadow-[0_0_40px_rgba(124,58,237,0.15)]"
         )}
       >
         <div className="flex h-full flex-col justify-between px-4 py-6">
@@ -69,7 +71,7 @@ export function Sidebar({
                   collapsed && "justify-center w-full"
                 )}
               >
-                <div className="h-9 w-9 rounded-lg bg-neutral-900 dark:bg-white flex items-center justify-center">
+                <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center shadow-lg">
                   <span className="text-white dark:text-neutral-900 font-semibold text-sm">
                     FM
                   </span>
