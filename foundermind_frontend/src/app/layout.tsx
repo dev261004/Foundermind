@@ -1,6 +1,7 @@
 
 import type { ReactNode } from "react"
 import "@/styles/globals.css"
+import "@/styles/not-found.css"
 
 interface RootLayoutProps {
   children: ReactNode

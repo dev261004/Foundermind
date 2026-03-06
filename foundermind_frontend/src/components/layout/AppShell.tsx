@@ -2,7 +2,7 @@
 
 import { ReactNode, useState } from "react"
 import { Sidebar } from "@/components/layout/Sidebar"
-import { Topbar } from "@/components/layout/Topbar"
+
 import { cn } from "@/lib/utils"
 
 interface AppShellProps {
@@ -37,7 +37,7 @@ export function AppShell({ children }: AppShellProps) {
           collapsed ? "lg:pl-[88px]" : "lg:pl-[280px]"
         )}
       >
-        <Topbar onSidebarToggle={handleSidebarToggle} />
+      
 
         <div className="flex-1 overflow-y-auto pt-16">
           {children}
