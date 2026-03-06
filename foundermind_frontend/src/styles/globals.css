@@ -681,6 +681,31 @@ body {
 }
 
 /* ============================= */
+/* LOGIN ERROR MESSAGE */
+/* ============================= */
+
+.login-error {
+  font-size: 13px;
+  color: #f87171;
+  background: rgba(248, 113, 113, .08);
+  border: 1px solid rgba(248, 113, 113, .25);
+  border-radius: 8px;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+/* ============================= */
+/* BUTTON DISABLED STATE */
+/* ============================= */
+
+.login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+
+/* ============================= */
 /* MODAL OVERLAY */
 /* ============================= */
 
@@ -791,6 +816,8 @@ body {
 .input-group input,
 .input-group textarea {
 
+  width: 100%;
+
   padding: 12px;
 
   border-radius: 10px;
@@ -804,6 +831,16 @@ body {
   outline: none;
 
   transition: .25s;
+
+  box-sizing: border-box;
+
+}
+
+.input-group textarea {
+
+  resize: horizontal;
+
+  max-width: 100%;
 
 }
 
