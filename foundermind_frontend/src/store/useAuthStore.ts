@@ -12,6 +12,7 @@ interface AuthState {
   error: string | null
 
   login: (email: string, password: string) => Promise<boolean>
+  register: (email: string, password: string) => Promise<boolean>
   logout: () => void
   clearError: () => void
 }
@@ -40,6 +41,26 @@ export const useAuthStore = create<AuthState>()(
         } catch (err: unknown) {
           const message =
             (err as { message?: string })?.message ?? "Login failed. Please try again."
+          set({ isLoading: false, error: message })
+          return false
+        }
+      },
+
+      register: async (email, password) => {
+        set({ isLoading: true, error: null })
+        try {
+          const data = await authService.register({ email, password })
+          set({
+            email: data.email,
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            isLoading: false,
+            error: null,
+          })
+          return true
+        } catch (err: unknown) {
+          const message =
+            (err as { message?: string })?.message ?? "Registration failed. Please try again."
           set({ isLoading: false, error: message })
           return false
         }

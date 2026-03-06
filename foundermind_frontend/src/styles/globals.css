@@ -562,6 +562,35 @@ body {
   text-align: center;
 }
 
+.auth-toggle {
+  display: inline-flex;
+  width: 100%;
+  margin-bottom: 28px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .08);
+}
+
+.auth-toggle-button {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #9ca3af;
+  background: transparent;
+  transition: .3s;
+}
+
+.auth-toggle-button.active {
+  color: white;
+  background: linear-gradient(135deg,
+      rgba(124, 58, 237, .85),
+      rgba(6, 182, 212, .85));
+  box-shadow: 0 0 24px rgba(124, 58, 237, .22);
+}
+
 /* ============================= */
 /* TITLE */
 /* ============================= */
@@ -702,6 +731,18 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+.auth-switch-text {
+  margin-top: 20px;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.auth-switch-button {
+  color: #67e8f9;
+  font-weight: 600;
+  background: transparent;
 }
 
 

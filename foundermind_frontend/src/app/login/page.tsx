@@ -1,30 +1,40 @@
 "use client"
 
-import { useState, FormEvent } from "react"
+import { FormEvent, useState } from "react"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/useAuthStore"
 
 export default function LoginPage() {
     const router = useRouter()
-    const { login, isLoading, error, clearError } = useAuthStore()
+    const { login, register, isLoading, error, clearError } = useAuthStore()
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
+    const [mode, setMode] = useState<"login" | "register">("login")
+
+    const isRegisterMode = mode === "register"
+
+    const switchMode = (nextMode: "login" | "register") => {
+        clearError()
+        setMode(nextMode)
+    }
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         clearError()
-        const success = await login(email, password)
+
+        const success = isRegisterMode
+            ? await register(email, password)
+            : await login(email, password)
+
         if (success) {
             router.push("/dashboard")
         }
     }
 
     return (
-
         <div className="login-page">
-
             <div className="login-glow" />
 
             <motion.div
@@ -33,19 +43,38 @@ export default function LoginPage() {
                 transition={{ duration: .6 }}
                 className="login-card"
             >
+                <div className="auth-toggle" role="tablist" aria-label="Authentication mode">
+                    <button
+                        type="button"
+                        className={`auth-toggle-button ${!isRegisterMode ? "active" : ""}`}
+                        onClick={() => switchMode("login")}
+                        disabled={isLoading}
+                    >
+                        Login
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`auth-toggle-button ${isRegisterMode ? "active" : ""}`}
+                        onClick={() => switchMode("register")}
+                        disabled={isLoading}
+                    >
+                        Register
+                    </button>
+                </div>
 
                 <h1 className="login-title">
-                    Welcome Back
+                    {isRegisterMode ? "Create Account" : "Welcome Back"}
                 </h1>
 
                 <p className="login-subtitle">
-                    Login to continue using FounderMind AI
+                    {isRegisterMode
+                        ? "Register once and you will be logged in automatically."
+                        : "Login to continue using FounderMind AI"}
                 </p>
 
                 <form className="login-form" onSubmit={handleSubmit}>
-
                     <div className="input-group">
-
                         <label htmlFor="email">Email</label>
 
                         <input
@@ -57,11 +86,9 @@ export default function LoginPage() {
                             required
                             disabled={isLoading}
                         />
-
                     </div>
 
                     <div className="input-group">
-
                         <label htmlFor="password">Password</label>
 
                         <input
@@ -73,7 +100,6 @@ export default function LoginPage() {
                             required
                             disabled={isLoading}
                         />
-
                     </div>
 
                     {error && (
@@ -87,15 +113,28 @@ export default function LoginPage() {
                         className="login-button"
                         disabled={isLoading}
                     >
-                        {isLoading ? "Logging in…" : "Login"}
+                        {isLoading
+                            ? isRegisterMode
+                                ? "Creating account..."
+                                : "Logging in..."
+                            : isRegisterMode
+                                ? "Register"
+                                : "Login"}
                     </button>
-
                 </form>
 
+                <p className="auth-switch-text">
+                    {isRegisterMode ? "Already have an account?" : "Need an account?"}{" "}
+                    <button
+                        type="button"
+                        className="auth-switch-button"
+                        onClick={() => switchMode(isRegisterMode ? "login" : "register")}
+                        disabled={isLoading}
+                    >
+                        {isRegisterMode ? "Login here" : "Register here"}
+                    </button>
+                </p>
             </motion.div>
-
         </div>
-
     )
-
 }
