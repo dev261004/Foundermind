@@ -7,6 +7,7 @@ import { RunStateMachine } from "@/lib/stateMachine/runStateMachine"
 import { AgentStage } from "@/types/agent"
 import { RunStage } from "@/lib/stateMachine/runStateMachine"
 import { Stage } from "@/store/useIdeaStore"
+import { AgentAnalysisResponse } from "@/types/analysis"
 
 type PollingState = "idle" | "running" | "stopped"
 
@@ -167,7 +168,10 @@ private mapMachineStateToUIStage(state: RunStage): Stage {
         this.controller.signal
       )
 
-      useRunStore.getState().setFullResult(result)
+      useRunStore.getState().setFullResult(
+        ideaId,
+        result as unknown as AgentAnalysisResponse
+      )
       useIdeaStore.getState().setStatus("completed")
 
       this.stop()
