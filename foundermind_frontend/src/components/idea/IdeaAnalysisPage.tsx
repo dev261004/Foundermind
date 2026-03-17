@@ -489,7 +489,11 @@ function humanizeKey(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
-function capitalize(value: string) {
+function capitalize(value?: string | null) {
+  if (!value) {
+    return "Unknown"
+  }
+
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
