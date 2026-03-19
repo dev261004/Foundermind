@@ -172,7 +172,7 @@ class StartupOrchestrator:
             weighted_score >= self.TARGET_WEIGHTED
         )
 
-    def run(self, idea: str):
+    def run(self, idea: str, log_callback=None):
 
         planner = PlannerAgent()
         executor = ToolExecutor()
@@ -181,15 +181,27 @@ class StartupOrchestrator:
         execution_log = []
         results = {}
 
+        def append_log(entry: dict):
+            execution_log.append(entry)
+            if log_callback:
+                log_callback(entry)
+
         # ---------- Hybrid Classification ----------
         idea_type, classification_confidence, source = hybrid_classify_idea(idea)
+        if not idea_type:
+            idea_type = "general"
+
+        if idea_type not in BASE_IDEA_TYPES:
+            idea_type = "general"
+
+        classification_confidence = max(0.0, min(float(classification_confidence or 0), 1.0))
 
         weight_doc = IdeaTypeWeights.objects(idea_type=idea_type).first()
         if weight_doc:
-           weights = weight_doc.weights
+            weights = weight_doc.weights
         else:
-           weights = BASE_IDEA_TYPES.get(idea_type)
-        execution_log.append({
+            weights = BASE_IDEA_TYPES.get(idea_type, BASE_IDEA_TYPES["general"])
+        append_log({
             "type": "idea_classification",
             "idea_type": idea_type,
             "classification_source": source,
@@ -200,7 +212,7 @@ class StartupOrchestrator:
         # ---------- Initial Execution ----------
         plan = planner.create_plan(idea)
 
-        execution_data = executor.execute_with_plan(idea, plan)
+        execution_data = executor.execute_with_plan(idea, plan, log_callback=append_log)
         results.update(execution_data["results"])
 
         # ---------- Quantitative Market Modeling ----------
@@ -215,7 +227,8 @@ class StartupOrchestrator:
                results["market_quantitative_model"] = market_model
            else:
                results["market_quantitative_model"] = None
-        execution_log += execution_data["execution_log"]
+        if not log_callback:
+            execution_log.extend(execution_data["execution_log"])
 
         critique = critic.review(idea, results)
 
@@ -225,14 +238,14 @@ class StartupOrchestrator:
         while iteration < self.MAX_ITERATIONS:
 
             if self.is_quality_satisfied(critique, weights):
-                execution_log.append({
+                append_log({
                     "type": "convergence",
                     "reason": "Quality thresholds satisfied"
                 })
                 break
 
             if not critique.get("needs_rerun"):
-                execution_log.append({
+                append_log({
                     "type": "convergence",
                     "reason": "Critic indicates no rerun needed"
                 })
@@ -240,7 +253,7 @@ class StartupOrchestrator:
 
             rerun_tools = critique.get("rerun_tools", [])
             if not rerun_tools:
-                execution_log.append({
+                append_log({
                     "type": "convergence",
                     "reason": "No rerun tools provided"
                 })
@@ -248,7 +261,7 @@ class StartupOrchestrator:
 
             iteration += 1
 
-            execution_log.append({
+            append_log({
                 "type": "self_healing_cycle",
                 "iteration": iteration,
                 "rerun_tools": rerun_tools
@@ -258,9 +271,11 @@ class StartupOrchestrator:
                 "steps": [{"tool": tool} for tool in rerun_tools]
             }
 
-            rerun_data = executor.execute_with_plan(idea, rerun_plan)
+            rerun_data = executor.execute_with_plan(idea, rerun_plan, log_callback=append_log)
             results.update(rerun_data["results"])
-            execution_log += rerun_data["execution_log"]
+
+            if not log_callback:
+                execution_log.extend(rerun_data["execution_log"])
 
             critique = critic.review(idea, results)
 
@@ -269,8 +284,6 @@ class StartupOrchestrator:
             critique,
             classification_confidence
         )
-        
-
         return {
             "idea_type": idea_type,
             "classification_confidence": classification_confidence,

@@ -11,7 +11,7 @@ poetry run python manage.py migrate
 ```
 
 ```
-poetry run celery -A foundermind_backend worker --loglevel=info
+poetry run celery -A config.celery:app worker --pool=solo --loglevel=info
 ```
 
 # Command to start Redis

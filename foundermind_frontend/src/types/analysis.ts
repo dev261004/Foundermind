@@ -43,10 +43,29 @@ export interface AgentExecutionLogEntry {
 }
 
 export interface AgentAnalysisResponse {
+  idea_id?: string
+  agent_run_id?: string
   idea_type: string
   classification_confidence: number
   analysis_confidence: number
   results: AgentAnalysisResults
   execution_log: AgentExecutionLogEntry[]
   critique: AgentCritique
+}
+
+export interface StartAnalysisResponse {
+  agent_run_id: string
+  status: "pending" | "running" | "completed"
+  mode?: "async" | "sync_fallback"
+  result?: AgentAnalysisResponse
+}
+
+export interface AgentAnalysisStatusResponse {
+  agent_run_id: string
+  idea_id: string
+  status: "pending" | "running" | "completed" | "failed"
+  execution_log: AgentExecutionLogEntry[]
+  critique?: Partial<AgentCritique> & { error?: string }
+  confidence?: number | null
+  result?: AgentAnalysisResponse
 }

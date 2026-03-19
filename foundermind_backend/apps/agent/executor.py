@@ -12,10 +12,15 @@ class ToolExecutor:
     Executes tools dynamically based on planner output.
     """
 
-    def execute_with_plan(self, idea: str, plan: dict):
+    def execute_with_plan(self, idea: str, plan: dict, log_callback=None):
 
         execution_log = []
         results = {}
+
+        def append_log(entry: dict):
+            execution_log.append(entry)
+            if log_callback:
+                log_callback(entry)
 
         for step in plan.get("steps", []):
             tool_name = step.get("tool")
@@ -60,20 +65,20 @@ class ToolExecutor:
                     results["swot"] = output
 
                 else:
-                    execution_log.append({
-                     "tool": tool_name,
-                     "status": "failed",
-                     "error": "Unknown tool"
-                     })
+                    append_log({
+                        "tool": tool_name,
+                        "status": "failed",
+                        "error": "Unknown tool"
+                    })
                     continue
 
-                execution_log.append({
+                append_log({
                     "tool": tool_name,
                     "status": "completed"
                 })
 
             except Exception as e:
-                execution_log.append({
+                append_log({
                     "tool": tool_name,
                     "status": "failed",
                     "error": str(e)
