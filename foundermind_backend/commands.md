@@ -3,6 +3,14 @@ cd foundermind_backend
 ```
 
 ```
+poetry run python manage.py runserver
+```
+
+```
+poetry run python manage.py migrate
+```
+
+```
 poetry run celery -A foundermind_backend worker --loglevel=info
 ```
 
