@@ -537,7 +537,7 @@ function humanizeLabel(value: string) {
 }
 
 function truncateText(value: string, maxLength: number) {
-  const cleaned = " ".join(value.split()).trim()
+  const cleaned = value.split().join(" ").trim()
 
   if (cleaned.length <= maxLength) {
     return cleaned

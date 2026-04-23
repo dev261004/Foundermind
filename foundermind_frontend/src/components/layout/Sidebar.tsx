@@ -1,12 +1,14 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
 import {
   LayoutDashboard,
   Lightbulb,
   LineChart,
   BarChart3,
   Activity,
+  LogOut,
   Settings,
   User,
   PanelLeftClose,
@@ -15,6 +17,7 @@ import {
 import { cn } from "@/lib/utils"
 import { SidebarItem } from "./SidebarItem"
 import { LucideIcon } from "lucide-react"
+import { useAuthStore } from "@/store/useAuthStore"
 
 interface NavItem {
   label: string
@@ -45,7 +48,15 @@ export function Sidebar({
   onOpenMobile,
   onCloseMobile,
 }: SidebarProps) {
+  const router = useRouter()
+  const logout = useAuthStore((state) => state.logout)
   const sidebarWidth = collapsed ? 88 : 280
+
+  const handleLogout = () => {
+    logout()
+    onCloseMobile()
+    router.replace("/login")
+  }
 
   return (
     <>
@@ -122,6 +133,26 @@ export function Sidebar({
               href="#"
               collapsed={collapsed}
             />
+            <button
+              type="button"
+              onClick={handleLogout}
+              aria-label="Logout"
+              className={cn(
+                "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5",
+                "text-sm font-medium text-rose-300 transition-all duration-200",
+                "hover:bg-rose-500/10 hover:text-rose-100"
+              )}
+            >
+              <LogOut
+                size={18}
+                className="shrink-0 transition-transform group-hover:scale-110"
+              />
+              {!collapsed && (
+                <span className="truncate transition-all duration-200">
+                  Logout
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </motion.aside>
@@ -177,6 +208,26 @@ export function Sidebar({
                     />
                   ))}
                 </nav>
+              </div>
+
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className={cn(
+                    "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5",
+                    "text-sm font-medium text-rose-500 transition-all duration-200",
+                    "hover:bg-rose-500/10 hover:text-rose-400"
+                  )}
+                >
+                  <LogOut
+                    size={18}
+                    className="shrink-0 transition-transform group-hover:scale-110"
+                  />
+                  <span className="truncate transition-all duration-200">
+                    Logout
+                  </span>
+                </button>
               </div>
             </motion.aside>
           </>
