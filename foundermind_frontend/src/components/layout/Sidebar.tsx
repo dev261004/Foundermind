@@ -31,11 +31,11 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "#" },
-  { label: "Ideas", icon: Lightbulb, href: "#" },
-  { label: "Analytics", icon: LineChart, href: "#" },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+  { label: "Ideas", icon: Lightbulb, href: "/dashboard/ideas" },
+  { label: "Analytics", icon: LineChart, href: "/dashboard/analytics" },
   { label: "Market Models", icon: BarChart3, href: "#" },
-  { label: "Drift Monitor", icon: Activity, href: "#" },
+  { label: "Drift Monitor", icon: Activity, href: "/dashboard/drift" },
 ]
 
 export function Sidebar({

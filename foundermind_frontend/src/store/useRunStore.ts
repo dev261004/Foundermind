@@ -50,7 +50,10 @@ export const useRunStore = create<RunState>((set) => ({
     })
 
     try {
-      const startResponse = await agentService.startAnalysis({ idea_id: ideaId })
+      const startResponse = await agentService.startAnalysis({
+        idea_id: ideaId,
+        force: options?.force ?? false,
+      })
       const { agent_run_id } = startResponse
 
       if (startResponse.status === "completed" && startResponse.result) {

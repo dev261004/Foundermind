@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { LucideIcon } from "lucide-react"
@@ -19,10 +20,14 @@ export function SidebarItem({
   collapsed,
   onClick,
 }: SidebarItemProps) {
-  const isActive = false
+  const pathname = usePathname()
+  const isRoutable = href !== "#"
+  const isActive =
+    isRoutable &&
+    (pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`)))
 
   return (
-    <Link href={href} onClick={onClick}>
+    <Link href={href} onClick={onClick} aria-current={isActive ? "page" : undefined}>
       <motion.div
         whileHover={{ x: 2 }}
         className={cn(

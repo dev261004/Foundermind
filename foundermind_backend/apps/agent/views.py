@@ -9,8 +9,27 @@ from apps.agent.models import AgentRun, IdeaAnalysis
 def start_analysis(request):
 
     idea_id = request.data.get("idea_id")
+    force = bool(request.data.get("force"))
     if not idea_id:
         return Response({"error": "Missing idea_id"}, status=400)
+
+    if not force:
+        latest_completed_run = AgentRun.objects(
+            idea_id=idea_id,
+            status="completed"
+        ).order_by("-created_at").first()
+        latest_analysis = IdeaAnalysis.objects(idea_id=idea_id).order_by("-created_at").first()
+
+        if latest_completed_run and latest_analysis:
+            return Response({
+                "agent_run_id": str(latest_completed_run.id),
+                "status": "completed",
+                "result": StartupAnalysisService.build_run_response(
+                    latest_completed_run,
+                    analysis=latest_analysis,
+                ),
+                "mode": "cached",
+            })
 
     agent_run = AgentRun(
         idea_id=idea_id,

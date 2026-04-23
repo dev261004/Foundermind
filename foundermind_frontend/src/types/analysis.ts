@@ -56,7 +56,7 @@ export interface AgentAnalysisResponse {
 export interface StartAnalysisResponse {
   agent_run_id: string
   status: "pending" | "running" | "completed"
-  mode?: "async" | "sync_fallback"
+  mode?: "async" | "sync_fallback" | "cached"
   result?: AgentAnalysisResponse
 }
 

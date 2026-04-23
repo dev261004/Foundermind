@@ -7,6 +7,7 @@ import {
 
 export interface RunAnalysisRequest {
   idea_id: string
+  force?: boolean
 }
 
 const ANALYSIS_REQUEST_TIMEOUT_MS = 3 * 60 * 1000

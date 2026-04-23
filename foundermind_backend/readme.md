@@ -87,5 +87,9 @@ FounderMind/
 │   └── .env
 │
 ├── requirements.txt
+
+
+
+
 └── docker-compose.yml
 ```
