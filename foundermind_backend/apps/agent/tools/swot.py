@@ -1,4 +1,6 @@
-from integrations.gemini_client import generate_text
+from django.conf import settings
+
+from integrations.gemini_client import call_llm
 
 
 def generate_swot_analysis(
@@ -43,4 +45,10 @@ Respond in this format:
 - ...
 """
 
-    return generate_text(prompt)
+    model = settings.AGENT_MODELS["tool_heavy"]
+    fallback = settings.AGENT_MODELS["fallback_gemma"]
+    return call_llm(
+        prompt,
+        model=model,
+        fallback_model=fallback,
+    )

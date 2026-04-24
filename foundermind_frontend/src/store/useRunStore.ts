@@ -2,12 +2,16 @@ import { create } from "zustand"
 import { agentService } from "@/app/services/agentService"
 import { AgentAnalysisResponse } from "@/types/analysis"
 
+type RunStatus = "idle" | "running" | "completed" | "partial" | "failed" | "quota_exhausted"
+
+const RESULT_READY_STATUSES = new Set<RunStatus>(["completed", "partial", "quota_exhausted"])
+
 interface RunState {
   activeIdeaId: string | null
   activeRunId: string | null
   result: AgentAnalysisResponse | null
   executionLog: AgentAnalysisResponse["execution_log"]
-  status: "idle" | "running" | "completed" | "failed"
+  status: RunStatus
   error: string | null
   rerunCount: number
   isConverged: boolean
@@ -35,7 +39,7 @@ export const useRunStore = create<RunState>((set) => ({
     if (
       !options?.force &&
       state.activeIdeaId === ideaId &&
-      (state.status === "running" || state.status === "completed")
+      (state.status === "running" || RESULT_READY_STATUSES.has(state.status))
     ) {
       return
     }
@@ -56,7 +60,7 @@ export const useRunStore = create<RunState>((set) => ({
       })
       const { agent_run_id } = startResponse
 
-      if (startResponse.status === "completed" && startResponse.result) {
+      if (RESULT_READY_STATUSES.has(startResponse.status as RunStatus) && startResponse.result) {
         const data = startResponse.result
 
         set({
@@ -64,10 +68,27 @@ export const useRunStore = create<RunState>((set) => ({
           activeRunId: agent_run_id,
           result: data,
           executionLog: data.execution_log ?? [],
-          status: "completed",
-          error: null,
+          status: startResponse.status as RunStatus,
+          error: startResponse.critique?.message ?? null,
           rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
           isConverged: !data.critique?.needs_rerun,
+        })
+        return
+      }
+
+      if (startResponse.status === "failed") {
+        set({
+          activeIdeaId: ideaId,
+          activeRunId: agent_run_id,
+          result: null,
+          executionLog: [],
+          status: "failed",
+          error:
+            startResponse.error ??
+            startResponse.critique?.error ??
+            "Analysis failed. Please try again.",
+          rerunCount: 0,
+          isConverged: false,
         })
         return
       }
@@ -81,14 +102,21 @@ export const useRunStore = create<RunState>((set) => ({
           activeIdeaId: ideaId,
           activeRunId: agent_run_id,
           executionLog: poll.execution_log ?? current.executionLog,
-          status: poll.status === "failed" ? "failed" : poll.status === "completed" ? "completed" : "running",
+          status:
+            poll.status === "failed"
+              ? "failed"
+              : poll.status === "completed" || poll.status === "partial" || poll.status === "quota_exhausted"
+                ? (poll.status as RunStatus)
+                : "running",
           error:
             poll.status === "failed"
               ? poll.critique?.error ?? "Analysis failed. Please try again."
+              : poll.status === "quota_exhausted"
+                ? poll.critique?.message ?? "Analysis paused — quota reached. Retry after rate limit resets."
               : null,
         }))
 
-        if (poll.status === "completed" && poll.result) {
+        if (RESULT_READY_STATUSES.has(poll.status as RunStatus) && poll.result) {
           const data = poll.result
 
           set({
@@ -96,8 +124,8 @@ export const useRunStore = create<RunState>((set) => ({
             activeRunId: agent_run_id,
             result: data,
             executionLog: data.execution_log ?? [],
-            status: "completed",
-            error: null,
+            status: poll.status as RunStatus,
+            error: poll.critique?.message ?? null,
             rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
             isConverged: !data.critique?.needs_rerun,
           })

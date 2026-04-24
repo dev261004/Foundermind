@@ -1,16 +1,26 @@
-from integrations.gemini_client import generate_text
+from django.conf import settings
+
+from integrations.gemini_client import call_llm
+
+
+TECHNICAL_HINTS = (
+    "ai",
+    "api",
+    "app",
+    "automation",
+    "cloud",
+    "data",
+    "developer",
+    "platform",
+    "saas",
+    "software",
+    "web",
+)
 
 
 def is_technical_startup(idea: str) -> bool:
-    prompt = f"""
-Is the following startup idea a technical or software-based product?
-
-Startup Idea: "{idea}"
-
-Respond with 'Yes' or 'No' only.
-"""
-    response = generate_text(prompt)
-    return "yes" in response.lower()
+    idea_lower = idea.lower()
+    return any(keyword in idea_lower for keyword in TECHNICAL_HINTS)
 
 
 def suggest_tech_stack(idea: str) -> str:
@@ -28,4 +38,10 @@ Respond in this format:
 - Hosting / DevOps:
 - Optional Tools:
 """
-    return generate_text(prompt)
+    model = settings.AGENT_MODELS["tool_light"]
+    fallback = settings.AGENT_MODELS["fallback_gemma"]
+    return call_llm(
+        prompt,
+        model=model,
+        fallback_model=fallback,
+    )

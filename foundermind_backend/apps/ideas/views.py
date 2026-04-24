@@ -16,6 +16,7 @@ def _build_preview(analysis):
         return ""
 
     for field_name in (
+        "report_summary",
         "market_data",
         "customer_profile",
         "monetization",
@@ -96,8 +97,19 @@ def get_idea_history(request):
 
     for idea in ideas:
         idea_id = str(idea.id)
-        latest_analysis = IdeaAnalysis.objects(idea_id=idea_id).order_by("-created_at").first()
-        latest_run = AgentRun.objects(idea_id=idea_id, status="completed").order_by("-created_at").first()
+        latest_run = (
+            AgentRun.objects(
+                idea_id=idea_id,
+                status__nin=["pending", "running"],
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        latest_analysis = (
+            IdeaAnalysis.objects(run_id=str(latest_run.id)).order_by("-created_at").first()
+            if latest_run
+            else IdeaAnalysis.objects(idea_id=idea_id).order_by("-created_at").first()
+        )
 
         if not latest_analysis and not latest_run:
             continue
@@ -113,7 +125,7 @@ def get_idea_history(request):
             "idea_id": idea_id,
             "title": idea.title,
             "description": idea.description,
-            "status": idea.status,
+            "status": getattr(latest_run, "status", None) or idea.status,
             "created_at": _serialize_datetime(getattr(idea, "created_at", None)),
             "updated_at": _serialize_datetime(getattr(idea, "updated_at", None)),
             "analyzed_at": _serialize_datetime(analyzed_at),

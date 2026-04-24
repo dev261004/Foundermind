@@ -1,8 +1,13 @@
+import logging
 import os
-from serpapi import GoogleSearch
+
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+SERPAPI_TIMEOUT_SECONDS = 30
 
 
 def search_google(query: str, num_results: int = 5):
@@ -17,9 +22,14 @@ def search_google(query: str, num_results: int = 5):
     }
 
     try:
-        search = GoogleSearch(params)
-        results = search.get_dict()
+        response = requests.get(
+            "https://serpapi.com/search.json",
+            params=params,
+            timeout=SERPAPI_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        results = response.json()
         return results.get("organic_results", [])
-    except Exception as e:
-        print(f"SerpAPI error: {e}")
+    except (requests.RequestException, ValueError) as e:
+        logger.warning("SerpAPI request failed query=%s error=%s", query, e)
         return []

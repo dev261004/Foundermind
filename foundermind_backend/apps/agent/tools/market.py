@@ -1,6 +1,9 @@
-from integrations.gemini_client import generate_text
 import re
 import json
+
+from django.conf import settings
+
+from integrations.gemini_client import call_llm
 
 
 def extract_structured_market_data(raw_text: str):
@@ -52,6 +55,12 @@ Startup Idea:
 {idea}
 """
 
-    response = generate_text(prompt)
+    model = settings.AGENT_MODELS["tool_light"]
+    fallback = settings.AGENT_MODELS["fallback_gemma"]
+    response = call_llm(
+        prompt,
+        model=model,
+        fallback_model=fallback,
+    )
 
     return response

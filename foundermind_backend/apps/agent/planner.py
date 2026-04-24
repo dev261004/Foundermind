@@ -1,4 +1,6 @@
-from integrations.gemini_client import generate_text
+from django.conf import settings
+
+from integrations.gemini_client import call_llm
 import json
 
 
@@ -50,7 +52,9 @@ Rules:
 - Be logical and strategic
 """
 
-        response = generate_text(prompt)
+        model = settings.AGENT_MODELS["planner"]
+        fallback = settings.AGENT_MODELS["fallback_gemini"]
+        response = call_llm(prompt, model=model, fallback_model=fallback)
 
         try:
             plan = json.loads(response)
@@ -68,4 +72,4 @@ Rules:
                 ]
             }
 
-        return plan
+        return plan, getattr(response, "model_used", model)

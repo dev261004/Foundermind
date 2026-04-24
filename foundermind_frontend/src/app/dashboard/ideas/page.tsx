@@ -176,7 +176,7 @@ export default function DashboardIdeasPage() {
             <HeroMetric
               label="Analyzed"
               value={String(history.length)}
-              hint="Ideas with completed AI reports"
+              hint="Ideas with saved AI analysis runs"
             />
             <HeroMetric
               label="Avg. Score"
@@ -186,7 +186,7 @@ export default function DashboardIdeasPage() {
             <HeroMetric
               label="Last Analysis"
               value={latestAnalyzedAt ? formatDate(latestAnalyzedAt) : "--"}
-              hint="Most recent completed report"
+              hint="Most recent saved report state"
             />
           </div>
         </div>
@@ -335,7 +335,7 @@ function IdeaHistoryCard({ idea }: { idea: IdeaHistoryItem }) {
       <div className="relative flex h-full flex-col gap-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-wrap gap-2">
-            <Tag>{humanizeLabel(idea.status ?? "active")}</Tag>
+            <Tag tone={getStatusTone(idea.status)}>{humanizeLabel(idea.status ?? "active")}</Tag>
             <Tag>{humanizeLabel(idea.idea_type ?? "general")}</Tag>
             <Tag>{idea.sections_ready} sections ready</Tag>
           </div>
@@ -360,7 +360,10 @@ function IdeaHistoryCard({ idea }: { idea: IdeaHistoryItem }) {
         <div className="grid gap-3 sm:grid-cols-3">
           <MiniStat label="Analyzed" value={formatDate(idea.analyzed_at)} />
           <MiniStat label="Confidence" value={formatPercent(idea.analysis_confidence)} />
-          <MiniStat label="Report" value={idea.agent_run_id ? "Ready" : "Saved"} />
+          <MiniStat
+            label="Report"
+            value={idea.agent_run_id ? humanizeLabel(idea.status ?? "ready") : "Saved"}
+          />
         </div>
 
         <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
@@ -400,9 +403,24 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Tag({ children }: { children: ReactNode }) {
+function Tag({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode
+  tone?: "neutral" | "success" | "warning" | "danger"
+}) {
+  const toneClass =
+    tone === "success"
+      ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"
+      : tone === "warning"
+        ? "border-amber-400/20 bg-amber-400/10 text-amber-100"
+        : tone === "danger"
+          ? "border-rose-400/20 bg-rose-400/10 text-rose-100"
+          : "border-white/10 bg-white/5 text-neutral-300"
+
   return (
-    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-neutral-300">
+    <span className={`rounded-full border px-3 py-1.5 text-xs font-medium ${toneClass}`}>
       {children}
     </span>
   )
@@ -536,8 +554,15 @@ function humanizeLabel(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function getStatusTone(status?: string) {
+  if (status === "completed") return "success"
+  if (status === "partial" || status === "quota_exhausted") return "warning"
+  if (status === "failed") return "danger"
+  return "neutral"
+}
+
 function truncateText(value: string, maxLength: number) {
-  const cleaned = value.split().join(" ").trim()
+  const cleaned = value.split(/\s+/).join(" ").trim()
 
   if (cleaned.length <= maxLength) {
     return cleaned

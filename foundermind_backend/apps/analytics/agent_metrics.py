@@ -4,10 +4,11 @@ from collections import defaultdict
 
 
 class AgentMetricsEngine:
+    COMPLETED_STATUSES = ["completed", "partial"]
 
     @staticmethod
     def _get_completed_runs(limit=None):
-        query = AgentRun.objects(status="completed")
+        query = AgentRun.objects(status__in=AgentMetricsEngine.COMPLETED_STATUSES)
         if limit:
             query = query.limit(limit)
         return list(query)
@@ -51,12 +52,15 @@ class AgentMetricsEngine:
 
         for r in runs:
             for entry in r.execution_log or []:
-                if entry.get("tool"):
-                    tool = entry["tool"]
-                    tool_stats.setdefault(tool, {"total": 0, "fail": 0})
-                    tool_stats[tool]["total"] += 1
-                    if entry.get("status") == "failed":
-                        tool_stats[tool]["fail"] += 1
+                status = entry.get("status")
+                if not entry.get("tool") or status not in {"success", "failed"}:
+                    continue
+
+                tool = entry["tool"]
+                tool_stats.setdefault(tool, {"total": 0, "fail": 0})
+                tool_stats[tool]["total"] += 1
+                if status == "failed":
+                    tool_stats[tool]["fail"] += 1
 
         result = {}
         for tool, stats in tool_stats.items():
@@ -124,7 +128,7 @@ class AgentMetricsEngine:
     @staticmethod
     def section_average_by_idea_type(idea_type):
         runs = AgentRun.objects(
-            status="completed",
+            status__in=AgentMetricsEngine.COMPLETED_STATUSES,
             idea_type=idea_type
         )
 
@@ -146,7 +150,7 @@ class AgentMetricsEngine:
     @staticmethod
     def rolling_average_score(window_size=50):
         recent_runs = (
-            AgentRun.objects(status="completed")
+            AgentRun.objects(status__in=AgentMetricsEngine.COMPLETED_STATUSES)
             .order_by("-created_at")
             .limit(window_size)
         )
@@ -158,7 +162,7 @@ class AgentMetricsEngine:
     @staticmethod
     def historical_average_score(skip_recent=50):
         historical_runs = (
-            AgentRun.objects(status="completed")
+            AgentRun.objects(status__in=AgentMetricsEngine.COMPLETED_STATUSES)
             .order_by("-created_at")
             .skip(skip_recent)
         )
@@ -171,7 +175,7 @@ class AgentMetricsEngine:
     def rolling_average_by_idea_type(idea_type, window_size=30):
         recent_runs = (
             AgentRun.objects(
-                status="completed",
+                status__in=AgentMetricsEngine.COMPLETED_STATUSES,
                 idea_type=idea_type
             )
             .order_by("-created_at")
@@ -187,7 +191,7 @@ class AgentMetricsEngine:
 
         historical_runs = (
             AgentRun.objects(
-                status="completed",
+                status__in=AgentMetricsEngine.COMPLETED_STATUSES,
                 idea_type=idea_type
             )
             .order_by("-created_at")
@@ -202,7 +206,7 @@ class AgentMetricsEngine:
     def tool_success_rate(window_size=50):
 
         recent_runs = (
-            AgentRun.objects(status="completed")
+            AgentRun.objects(status__in=AgentMetricsEngine.COMPLETED_STATUSES)
             .order_by("-created_at")
             .limit(window_size)
         )
@@ -212,13 +216,14 @@ class AgentMetricsEngine:
         for r in recent_runs:
             for entry in r.execution_log or []:
                 tool = entry.get("tool")
-                if not tool:
+                status = entry.get("status")
+                if not tool or status not in {"success", "failed"}:
                     continue
 
                 tool_stats.setdefault(tool, {"total": 0, "success": 0})
 
                 tool_stats[tool]["total"] += 1
-                if entry.get("status") == "completed":
+                if status == "success":
                     tool_stats[tool]["success"] += 1
 
         success_rates = {}
@@ -236,7 +241,7 @@ class AgentMetricsEngine:
     def historical_tool_success_rate(skip_recent=50):
 
         historical_runs = (
-            AgentRun.objects(status="completed")
+            AgentRun.objects(status__in=AgentMetricsEngine.COMPLETED_STATUSES)
             .order_by("-created_at")
             .skip(skip_recent)
         )
@@ -246,13 +251,14 @@ class AgentMetricsEngine:
         for r in historical_runs:
             for entry in r.execution_log or []:
                 tool = entry.get("tool")
-                if not tool:
+                status = entry.get("status")
+                if not tool or status not in {"success", "failed"}:
                     continue
 
                 tool_stats.setdefault(tool, {"total": 0, "success": 0})
 
                 tool_stats[tool]["total"] += 1
-                if entry.get("status") == "completed":
+                if status == "success":
                     tool_stats[tool]["success"] += 1
 
         success_rates = {}

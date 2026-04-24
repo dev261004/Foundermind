@@ -149,6 +149,7 @@ export default function IdeaAnalysisPage({ ideaId }: Props) {
 
   const runTitle = ideaInput?.trim() || `Idea ${ideaId.slice(0, 8)}`
   const ideaType = result ? capitalize(result.idea_type) : "Pending"
+  const runStatusLabel = formatRunStatus(status)
 
   return (
     <main className={styles.page}>
@@ -187,7 +188,7 @@ export default function IdeaAnalysisPage({ ideaId }: Props) {
           <div className={styles.heroMetrics}>
             <MetricTile
               label="Run Status"
-              value={capitalize(status)}
+              value={runStatusLabel}
               hint="Live status updates while analysis is being generated."
             />
             <MetricTile
@@ -200,14 +201,31 @@ export default function IdeaAnalysisPage({ ideaId }: Props) {
 
         {(status === "idle" || status === "running") && <LoadingState executionLog={executionLog} />}
         {status === "failed" && <ErrorState message={error} onRetry={() => void startAnalysis(ideaId, { force: true })} />}
-        {status === "completed" && result && <AnalysisContent result={result} />}
+        {status === "quota_exhausted" && !result && (
+          <ErrorState
+            message={error ?? "Analysis paused — quota reached. Retry after rate limit resets."}
+            onRetry={() => void startAnalysis(ideaId, { force: true })}
+          />
+        )}
+        {(status === "completed" || status === "partial" || status === "quota_exhausted") && result && (
+          <AnalysisContent result={result} status={status} bannerMessage={error} />
+        )}
       </div>
     </main>
   )
 }
 
-function AnalysisContent({ result }: { result: AgentAnalysisResponse }) {
-  const sectionEntries = SECTION_CONFIG.filter(({ key }) => {
+function AnalysisContent({
+  result,
+  status,
+  bannerMessage,
+}: {
+  result: AgentAnalysisResponse
+  status: "completed" | "partial" | "quota_exhausted"
+  bannerMessage?: string | null
+}) {
+  const showIncompleteSections = status === "partial" || status === "quota_exhausted"
+  const sectionEntries = showIncompleteSections ? SECTION_CONFIG : SECTION_CONFIG.filter(({ key }) => {
     const value = result.results[key]
     return typeof value === "string" && value.trim().length > 0
   })
@@ -217,8 +235,47 @@ function AnalysisContent({ result }: { result: AgentAnalysisResponse }) {
 
   return (
     <div className={styles.sectionStack}>
+      {status !== "completed" && (
+        <StatusBanner
+          status={status}
+          message={
+            bannerMessage ??
+            (status === "partial"
+              ? "Some sections are incomplete due to API errors. Available sections are shown below."
+              : "Analysis paused — quota reached. Saved sections are shown below, and missing sections can be retried later.")
+          }
+        />
+      )}
+
+      {result.report_summary && (
+        <section className={styles.summaryPanel}>
+          <div className={styles.cardHeader}>
+            <div>
+              <h2 className={styles.cardTitle}>Executive Summary</h2>
+              <span className={styles.cardSubtitle}>
+                Reporter synthesis built from the sections the agent could recover.
+              </span>
+            </div>
+            <span className={styles.pill}>
+              <Sparkles size={14} />
+              Reporter
+            </span>
+          </div>
+          <div className={styles.narrativePanel}>
+            <StructuredText text={result.report_summary} />
+          </div>
+        </section>
+      )}
+
       {sectionEntries.map(({ key, title, subtitle, pill }) => {
+        const rawValue = result.results[key]
+        const hasContent = typeof rawValue === "string" && rawValue.trim().length > 0
+
         if (key === "market_data") {
+          if (!hasContent && marketModelEntries.length === 0 && !showIncompleteSections) {
+            return null
+          }
+
           return (
             <DrawerSection
               key={key}
@@ -227,12 +284,20 @@ function AnalysisContent({ result }: { result: AgentAnalysisResponse }) {
               pill={pill}
               defaultOpen
             >
-              <MarketDataContent
-                text={String(result.results.market_data ?? "")}
-                marketModelEntries={marketModelEntries}
-              />
+              {hasContent || marketModelEntries.length > 0 ? (
+                <MarketDataContent
+                  text={String(result.results.market_data ?? "")}
+                  marketModelEntries={marketModelEntries}
+                />
+              ) : (
+                <UnavailableSection sectionTitle={title} />
+              )}
             </DrawerSection>
           )
+        }
+
+        if (!hasContent && !showIncompleteSections) {
+          return null
         }
 
         return (
@@ -243,7 +308,9 @@ function AnalysisContent({ result }: { result: AgentAnalysisResponse }) {
             pill={pill}
             defaultOpen
           >
-            {key === "similar_startups" || key === "funding_info" ? (
+            {!hasContent ? (
+              <UnavailableSection sectionTitle={title} />
+            ) : key === "similar_startups" || key === "funding_info" ? (
               <ResearchFeedSection
                 sectionKey={key}
                 text={String(result.results[key] ?? "")}
@@ -255,6 +322,40 @@ function AnalysisContent({ result }: { result: AgentAnalysisResponse }) {
         )
       })}
 
+    </div>
+  )
+}
+
+function StatusBanner({
+  status,
+  message,
+}: {
+  status: "partial" | "quota_exhausted"
+  message: string
+}) {
+  const bannerClass =
+    status === "partial" ? styles.statusBannerPartial : styles.statusBannerQuota
+
+  return (
+    <section className={`${styles.statusBanner} ${bannerClass}`}>
+      <div className={styles.statusBannerIcon}>
+        <CircleAlert size={18} />
+      </div>
+      <div>
+        <h2 className={styles.statusBannerTitle}>{formatRunStatus(status)}</h2>
+        <p className={styles.statusBannerText}>{message}</p>
+      </div>
+    </section>
+  )
+}
+
+function UnavailableSection({ sectionTitle }: { sectionTitle: string }) {
+  return (
+    <div className={styles.unavailablePanel}>
+      <p className={styles.unavailableTitle}>{sectionTitle}</p>
+      <p className={styles.unavailableText}>
+        [Section unavailable — data could not be retrieved]
+      </p>
     </div>
   )
 }
@@ -299,7 +400,7 @@ function MarketDataContent({
   marketModelEntries,
 }: {
   text: string
-  marketModelEntries: Array<[string, string | number]>
+  marketModelEntries: Array<[string, string | number | null | undefined]>
 }) {
   const groups = parseStructuredGroups(text)
 
@@ -603,7 +704,7 @@ function TimelineEntry({ entry }: { entry: AgentExecutionLogEntry }) {
       <div className={styles.timelineBody}>
         <div className={styles.timelineHeading}>
           <span className={styles.timelineTitle}>{getTimelineTitle(entry)}</span>
-          {entry.status && <span className={styles.statusPill}>{capitalize(entry.status)}</span>}
+          {entry.status && <span className={styles.statusPill}>{formatRunStatus(entry.status)}</span>}
         </div>
         <p className={styles.timelineMeta}>{getTimelineDescription(entry)}</p>
       </div>
@@ -631,8 +732,10 @@ function MetricTile({
 
 function getTimelineTitle(entry: AgentExecutionLogEntry) {
   if (entry.type === "idea_classification") return "Idea classification"
+  if (entry.type === "inter_tool_delay") return "Inter-tool pacing"
   if (entry.type === "self_healing_cycle") return `Self-healing cycle ${entry.iteration ?? ""}`.trim()
   if (entry.type === "convergence") return "Convergence decision"
+  if (entry.agent) return humanizeKey(entry.agent)
   if (entry.tool) return humanizeKey(entry.tool)
   return "Agent event"
 }
@@ -647,16 +750,32 @@ function getTimelineDescription(entry: AgentExecutionLogEntry) {
     return `Critic requested another pass using: ${reruns}.`
   }
 
+  if (entry.type === "inter_tool_delay") {
+    return `Waiting ${entry.delay_seconds ?? 0}s before continuing after ${humanizeKey(entry.after_tool ?? "the previous tool")}.`
+  }
+
   if (entry.type === "convergence") {
     return entry.reason ?? "The orchestrator decided no further iterations were needed."
   }
 
+  if (entry.agent && entry.error) {
+    return `${humanizeKey(entry.agent)} failed: ${entry.error}`
+  }
+
+  if (entry.agent) {
+    return entry.message ?? `${humanizeKey(entry.agent)} completed successfully.`
+  }
+
   if (entry.tool) {
-    if (entry.error) {
-      return `${capitalize(entry.status ?? "failed")} while executing ${humanizeKey(entry.tool)}: ${entry.error}`
+    if (entry.status === "skipped") {
+      return entry.message ?? `Skipping ${humanizeKey(entry.tool)} because a checkpoint already exists.`
     }
 
-    return `${capitalize(entry.status ?? "completed")} ${humanizeKey(entry.tool)}.`
+    if (entry.error) {
+      return `${formatRunStatus(entry.status ?? "failed")} while executing ${humanizeKey(entry.tool)}: ${entry.error}`
+    }
+
+    return entry.message ?? `${formatRunStatus(entry.status ?? "success")} ${humanizeKey(entry.tool)}.`
   }
 
   return "Agent event recorded."
@@ -780,6 +899,14 @@ function capitalize(value?: string | null) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+function formatRunStatus(value?: string | null) {
+  if (!value) {
+    return "Pending"
+  }
+
+  return humanizeKey(value)
+}
+
 function formatMetricValue(
   key: string,
   value: string | number | null | undefined,
@@ -810,7 +937,7 @@ function parseResearchFeed(sectionKey: ResearchSectionKey, text: string) {
   const blocks = splitBlocks(text)
   const items = blocks
     .map((block, index) => parseResearchBlock(sectionKey, block, index))
-    .filter((item): item is ResearchFeedItem => Boolean(item))
+    .filter((item): item is ResearchFeedItem => item !== null)
 
   const deduped = new Map<string, ResearchFeedItem>()
 
@@ -828,7 +955,7 @@ function parseResearchBlock(
   sectionKey: ResearchSectionKey,
   block: string,
   index: number
-) {
+): ResearchFeedItem | null {
   const normalizedBlock = block.replace(/\r/g, "").trim()
   if (!normalizedBlock) {
     return null

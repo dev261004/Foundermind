@@ -1,6 +1,9 @@
-from integrations.gemini_client import generate_text
 import json
 import re
+
+from django.conf import settings
+
+from integrations.gemini_client import call_llm
 
 
 class CriticAgent:
@@ -101,7 +104,9 @@ Rules:
 - If SWOT is generic → suggest generate_swot_analysis
 """
 
-        response = generate_text(prompt)
+        model = settings.AGENT_MODELS["critic"]
+        fallback = settings.AGENT_MODELS["fallback_gemma"]
+        response = call_llm(prompt, model=model, fallback_model=fallback)
 
         try:
             json_match = re.search(r"\{.*\}", response, re.DOTALL)
@@ -138,4 +143,8 @@ Rules:
                 "needs_rerun": False
             }
 
-        return critique
+        return critique, getattr(
+            response,
+            "model_used",
+            model,
+        )

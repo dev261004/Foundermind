@@ -26,13 +26,21 @@ export interface AgentCritique {
   issues_found: string[]
   rerun_tools: string[]
   needs_rerun: boolean
+  error?: string | null
+  message?: string | null
 }
 
 export interface AgentExecutionLogEntry {
   type?: string
+  agent?: string
   tool?: string
   status?: string
+  result?: string | null
   error?: string
+  error_type?: string
+  model_used?: string
+  message?: string
+  timestamp?: string
   idea_type?: string
   classification_source?: string
   classification_confidence?: number
@@ -40,6 +48,8 @@ export interface AgentExecutionLogEntry {
   iteration?: number
   rerun_tools?: string[]
   reason?: string
+  after_tool?: string
+  delay_seconds?: number
 }
 
 export interface AgentAnalysisResponse {
@@ -48,6 +58,8 @@ export interface AgentAnalysisResponse {
   idea_type: string
   classification_confidence: number
   analysis_confidence: number
+  report_summary?: string | null
+  models_used?: Record<string, string>
   results: AgentAnalysisResults
   execution_log: AgentExecutionLogEntry[]
   critique: AgentCritique
@@ -55,17 +67,19 @@ export interface AgentAnalysisResponse {
 
 export interface StartAnalysisResponse {
   agent_run_id: string
-  status: "pending" | "running" | "completed"
+  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted"
   mode?: "async" | "sync_fallback" | "cached"
   result?: AgentAnalysisResponse
+  critique?: Partial<AgentCritique> & { error?: string; message?: string }
+  error?: string
 }
 
 export interface AgentAnalysisStatusResponse {
   agent_run_id: string
   idea_id: string
-  status: "pending" | "running" | "completed" | "failed"
+  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted"
   execution_log: AgentExecutionLogEntry[]
-  critique?: Partial<AgentCritique> & { error?: string }
+  critique?: Partial<AgentCritique> & { error?: string; message?: string }
   confidence?: number | null
   result?: AgentAnalysisResponse
 }

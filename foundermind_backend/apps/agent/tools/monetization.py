@@ -1,4 +1,6 @@
-from integrations.gemini_client import generate_text
+from django.conf import settings
+
+from integrations.gemini_client import call_llm
 
 
 def generate_monetization_strategy(idea: str) -> str:
@@ -15,4 +17,10 @@ Format the output like this:
 1. Strategy name — short explanation
 2. ...
 """
-    return generate_text(prompt)
+    model = settings.AGENT_MODELS["tool_heavy"]
+    fallback = settings.AGENT_MODELS["fallback_gemma"]
+    return call_llm(
+        prompt,
+        model=model,
+        fallback_model=fallback,
+    )

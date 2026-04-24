@@ -11,6 +11,13 @@ ENV_PATH = BASE_DIR / ".env"
 
 load_dotenv(dotenv_path=ENV_PATH)
 
+
+def env(name, default=None, cast=None):
+    value = os.getenv(name, default)
+    if value is None or cast is None:
+        return value
+    return cast(value)
+
 # print("MONGO_URI:", os.getenv("MONGO_URI"))
 
 # ---------- SECURITY ----------
@@ -32,6 +39,7 @@ INSTALLED_APPS = [
     "corsheaders",
 
     # local apps
+    "apps.agent.apps.AgentConfig",
     "apps.users",
     "apps.ideas",
 ]
@@ -111,3 +119,13 @@ CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+
+AGENT_MODELS = {
+    "planner": "gemini-2.5-flash",
+    "critic": "gemini-3.1-flash-lite-preview",
+    "reporter": "gemini-3.1-flash-lite-preview",
+    "tool_heavy": "gemini-3.1-flash-lite-preview",
+    "tool_light": "gemma-4-31b-it",
+    "fallback_gemini": "gemini-2.5-flash-lite",
+    "fallback_gemma": "gemma-3-27b-it",
+}

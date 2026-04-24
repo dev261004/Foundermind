@@ -1,4 +1,6 @@
-from integrations.gemini_client import generate_text
+from django.conf import settings
+
+from integrations.gemini_client import call_llm
 
 
 def generate_customer_profile(idea: str) -> str:
@@ -16,4 +18,10 @@ Based on the startup idea below, generate an Ideal Customer Profile (ICP) in thi
 
 Startup Idea: "{idea}"
 """
-    return generate_text(prompt)
+    model = settings.AGENT_MODELS["tool_light"]
+    fallback = settings.AGENT_MODELS["fallback_gemma"]
+    return call_llm(
+        prompt,
+        model=model,
+        fallback_model=fallback,
+    )

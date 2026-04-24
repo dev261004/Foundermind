@@ -25,7 +25,7 @@ export interface IdeaHistoryItem {
   idea_id: string
   title: string
   description?: string
-  status?: string
+  status?: "completed" | "partial" | "failed" | "quota_exhausted" | "active"
   created_at?: string
   updated_at?: string
   analyzed_at?: string
