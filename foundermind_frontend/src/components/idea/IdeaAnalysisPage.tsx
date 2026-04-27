@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, ReactNode, useEffect } from "react"
+import ReactMarkdown from "react-markdown"
 import Link from "next/link"
 import {
   Activity,
@@ -262,14 +263,15 @@ function AnalysisContent({
             </span>
           </div>
           <div className={styles.narrativePanel}>
-            <StructuredText text={result.report_summary} />
+            <ReactMarkdown>{result.report_summary}</ReactMarkdown>
           </div>
         </section>
       )}
 
       {sectionEntries.map(({ key, title, subtitle, pill }) => {
         const rawValue = result.results[key]
-        const hasContent = typeof rawValue === "string" && rawValue.trim().length > 0
+        const rawString = typeof rawValue === "string" ? rawValue.trim() : ""
+        const hasContent = rawString.length > 0
 
         if (key === "market_data") {
           if (!hasContent && marketModelEntries.length === 0 && !showIncompleteSections) {
@@ -296,7 +298,14 @@ function AnalysisContent({
           )
         }
 
-        if (!hasContent && !showIncompleteSections) {
+        let isContentUnavailable = !hasContent
+        if (key === "funding_info") {
+          if (!rawString || rawString === "No funding info found.") {
+            isContentUnavailable = true
+          }
+        }
+
+        if (isContentUnavailable && !showIncompleteSections) {
           return null
         }
 
@@ -308,9 +317,29 @@ function AnalysisContent({
             pill={pill}
             defaultOpen
           >
-            {!hasContent ? (
+            {isContentUnavailable ? (
               <UnavailableSection sectionTitle={title} />
-            ) : key === "similar_startups" || key === "funding_info" ? (
+            ) : key === "similar_startups" ? (
+              <div className={styles.narrativePanel}>
+                <ReactMarkdown
+                  components={{
+                    a: ({ node, ...props }) => (
+                      <a
+                        {...props}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={styles.researchLink}
+                      >
+                        View source
+                        <ExternalLink size={14} />
+                      </a>
+                    ),
+                  }}
+                >
+                  {String(result.results[key] ?? "")}
+                </ReactMarkdown>
+              </div>
+            ) : key === "funding_info" ? (
               <ResearchFeedSection
                 sectionKey={key}
                 text={String(result.results[key] ?? "")}
@@ -402,8 +431,6 @@ function MarketDataContent({
   text: string
   marketModelEntries: Array<[string, string | number | null | undefined]>
 }) {
-  const groups = parseStructuredGroups(text)
-
   return (
     <div className={styles.marketLayout}>
       {marketModelEntries.length > 0 && (
@@ -427,19 +454,9 @@ function MarketDataContent({
         </section>
       )}
 
-      {groups.length > 0 ? (
-        <div className={styles.rowStack}>
-          {groups.map((group, index) => (
-            <SectionRow
-              key={`${group.title}-${index}`}
-              label={group.title}
-              content={<StructuredText text={group.content.join("\n")} />}
-            />
-          ))}
-        </div>
-      ) : (
+      {text.trim().length > 0 && (
         <div className={styles.narrativePanel}>
-          <StructuredText text={text} />
+          <ReactMarkdown>{text}</ReactMarkdown>
         </div>
       )}
     </div>
@@ -453,44 +470,9 @@ function SectionRenderer({
   sectionKey: keyof AgentAnalysisResponse["results"]
   text: string
 }) {
-  if (sectionKey === "swot") {
-    return <SwotGrid text={text} />
-  }
-
-  const groups = parseStructuredGroups(text)
-
-  if (groups.length > 0) {
-    return (
-      <div className={styles.rowStack}>
-        {groups.map((group, index) => (
-          <SectionRow
-            key={`${group.title}-${index}`}
-            label={group.title}
-            content={<StructuredText text={group.content.join("\n")} />}
-          />
-        ))}
-      </div>
-    )
-  }
-
-  const blocks = splitBlocks(text)
-  if (blocks.length > 1) {
-    return (
-      <div className={styles.rowStack}>
-        {blocks.map((block, index) => (
-          <SectionRow
-            key={`${sectionKey}-${index}`}
-            label={getBlockLabel(sectionKey, block, index)}
-            content={<StructuredText text={block} />}
-          />
-        ))}
-      </div>
-    )
-  }
-
   return (
     <div className={styles.narrativePanel}>
-      <StructuredText text={text} />
+      <ReactMarkdown>{text}</ReactMarkdown>
     </div>
   )
 }
@@ -507,7 +489,7 @@ function ResearchFeedSection({
   if (items.length === 0) {
     return (
       <div className={styles.narrativePanel}>
-        <StructuredText text={text} />
+        <ReactMarkdown>{text}</ReactMarkdown>
       </div>
     )
   }
@@ -549,83 +531,7 @@ function ResearchFeedSection({
   )
 }
 
-function SectionRow({
-  label,
-  content,
-}: {
-  label: string
-  content: ReactNode
-}) {
-  return (
-    <div className={styles.sectionRow}>
-      <div className={styles.sectionRail}>
-        <span className={styles.sectionRailLabel}>{label}</span>
-      </div>
-      <div className={styles.sectionContent}>{content}</div>
-    </div>
-  )
-}
 
-function SwotGrid({ text }: { text: string }) {
-  const groups = parseStructuredGroups(text)
-  const normalizedGroups = ["Strengths", "Weaknesses", "Opportunities", "Threats"]
-    .map((label) => {
-      const match = groups.find((group) => {
-        const normalized = group.title.toLowerCase()
-        return normalized.includes(label.toLowerCase()) || normalized.includes(label.toLowerCase().slice(0, -1))
-      })
-      return match ? { ...match, title: label } : null
-    })
-    .filter(Boolean) as Array<{ title: string; content: string[] }>
-
-  if (normalizedGroups.length === 0) {
-    return (
-      <div className={styles.narrativePanel}>
-        <StructuredText text={text} />
-      </div>
-    )
-  }
-
-  return (
-    <div className={styles.swotGrid}>
-      {normalizedGroups.map((group) => (
-        <div key={group.title} className={styles.swotCard}>
-          <span className={styles.swotLabel}>{group.title}</span>
-          <StructuredText text={group.content.join("\n")} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function StructuredText({ text }: { text: string }) {
-  const blocks = splitBlocks(text)
-
-  return (
-    <>
-      {blocks.map((block, index) => {
-        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean)
-        const listLines = lines.filter((line) => /^([-*]|\d+\.)\s+/.test(line))
-
-        if (lines.length > 0 && listLines.length >= Math.max(1, Math.ceil(lines.length / 2))) {
-          return (
-            <ul key={`${index}-${block.slice(0, 16)}`} className={styles.structuredList}>
-              {lines.map((line) => (
-                <li key={line}>{renderInlineText(cleanListPrefix(line))}</li>
-              ))}
-            </ul>
-          )
-        }
-
-        return (
-          <p key={`${index}-${block.slice(0, 16)}`} className={styles.structuredParagraph}>
-            {renderInlineText(block)}
-          </p>
-        )
-      })}
-    </>
-  )
-}
 
 function LoadingState({ executionLog }: { executionLog: AgentExecutionLogEntry[] }) {
   return (
@@ -788,94 +694,13 @@ function splitBlocks(text: string) {
     .filter(Boolean)
 }
 
-function parseStructuredGroups(text: string) {
-  const lines = text.split("\n").map((line) => line.trim())
-  const groups: Array<{ title: string; content: string[] }> = []
-  let currentGroup: { title: string; content: string[] } | null = null
 
-  for (const line of lines) {
-    if (!line) {
-      continue
-    }
-
-    const headingMatch = line.match(/^(?:[-*]\s*)?\*{0,2}([^:*]+?)\*{0,2}:\s*(.*)$/)
-    if (headingMatch) {
-      if (currentGroup) {
-        groups.push(currentGroup)
-      }
-
-      currentGroup = {
-        title: headingMatch[1].trim(),
-        content: headingMatch[2] ? [headingMatch[2].trim()] : [],
-      }
-      continue
-    }
-
-    if (currentGroup) {
-      currentGroup.content.push(line)
-    }
-  }
-
-  return groups.filter((group) => group.content.length > 0)
-}
 
 function cleanListPrefix(line: string) {
   return line.replace(/^([-*]|\d+\.)\s+/, "").trim()
 }
 
-function getBlockLabel(
-  sectionKey: keyof AgentAnalysisResponse["results"],
-  block: string,
-  index: number
-) {
-  const firstLine = block.split("\n").map((line) => cleanListPrefix(line.trim())).find(Boolean)
-  if (!firstLine) {
-    return `${humanizeKey(String(sectionKey))} ${index + 1}`
-  }
 
-  const explicit = firstLine.match(/^\*{0,2}([^:*]{2,80})\*{0,2}:\s*/)
-  if (explicit) {
-    return explicit[1].trim()
-  }
-
-  const sentence = firstLine.split(/[.!?]/)[0]?.trim()
-  if (sentence && sentence.length <= 42) {
-    return sentence
-  }
-
-  return `${humanizeKey(String(sectionKey))} ${index + 1}`
-}
-
-function renderInlineText(text: string) {
-  const parts = text
-    .split(/(\*\*[^*]+\*\*|https?:\/\/[^\s)]+|www\.[^\s)]+)/g)
-    .filter(Boolean)
-
-  return parts.map((part, index) => {
-    if (/^\*\*[^*]+\*\*$/.test(part)) {
-      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>
-    }
-
-    if (/^(https?:\/\/|www\.)/i.test(part)) {
-      const href = part.startsWith("http") ? part : `https://${part}`
-
-      return (
-        <a
-          key={`${href}-${index}`}
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className={styles.inlineLink}
-        >
-          {part}
-          <ExternalLink size={14} />
-        </a>
-      )
-    }
-
-    return <Fragment key={`${part}-${index}`}>{part}</Fragment>
-  })
-}
 
 function formatScore(value: number, asPercent = false) {
   const safeValue = Number.isFinite(value) ? value : 0
