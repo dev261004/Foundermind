@@ -6,6 +6,7 @@ import Link from "next/link"
 import {
   Activity,
   ArrowRight,
+  Banknote,
   BrainCircuit,
   ChevronDown,
   CircleAlert,
@@ -16,9 +17,11 @@ import {
 } from "lucide-react"
 import { useRunStore } from "@/store/useRunStore"
 import { useIdeaStore } from "@/store/useIdeaStore"
-import { AgentAnalysisResponse, AgentExecutionLogEntry } from "@/types/analysis"
+import { AgentAnalysisResponse, AgentExecutionLogEntry, MonetizationStrategyItem } from "@/types/analysis"
 import { MarketData, MarketDataHeader } from "@/components/results/MarketData"
 import { MarketDataEmpty } from "@/components/results/MarketData/MarketDataEmpty"
+import { MonetizationStrategy } from "@/components/results/MonetizationStrategy"
+import { MonetizationEmpty } from "@/components/results/MonetizationStrategy/MonetizationEmpty"
 import styles from "./IdeaAnalysisPage.module.css"
 
 interface Props {
@@ -197,6 +200,9 @@ function AnalysisContent({
         Object.keys(result.results.market_quantitative_model).length > 0
       return hasText || hasModel
     }
+    if (key === "monetization") {
+      return Array.isArray(value) ? value.length > 0 : typeof value === "string" && value.trim().length > 0
+    }
     return typeof value === "string" && value.trim().length > 0
   })
 
@@ -260,6 +266,36 @@ function AnalysisContent({
                 )}
               </div>
             </details>
+          )
+        }
+
+        if (key === "monetization") {
+          const rawMonetization = result.results.monetization
+          const strategies: MonetizationStrategyItem[] = Array.isArray(rawMonetization)
+            ? (rawMonetization as MonetizationStrategyItem[])
+            : []
+
+          return (
+            <DrawerSection
+              key={key}
+              title={title}
+              subtitle={subtitle}
+              pill={pill}
+              pillElement={
+                <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 bg-purple-900/30 text-purple-400 rounded border border-purple-800/50">
+                  <Banknote className="w-3.5 h-3.5" />
+                  <span>Revenue</span>
+                </div>
+              }
+              defaultOpen
+              countLabel={strategies.length > 0 ? `${strategies.length} strategies` : undefined}
+            >
+              {strategies.length > 0 ? (
+                <MonetizationStrategy strategies={strategies} />
+              ) : (
+                <MonetizationEmpty />
+              )}
+            </DrawerSection>
           )
         }
 
@@ -358,13 +394,17 @@ function DrawerSection({
   title,
   subtitle,
   pill,
+  pillElement,
   defaultOpen,
+  countLabel,
   children,
 }: {
   title: string
   subtitle: string
   pill: string
+  pillElement?: ReactNode
   defaultOpen?: boolean
+  countLabel?: string
   children: ReactNode
 }) {
   return (
@@ -372,13 +412,20 @@ function DrawerSection({
       <summary className={styles.drawerSummary}>
         <div className={styles.drawerHeading}>
           <div>
-            <h2 className={styles.cardTitle}>{title}</h2>
+            <h2 className={styles.cardTitle}>
+              {title}
+              {countLabel && (
+                <span className={styles.countPill}>{countLabel}</span>
+              )}
+            </h2>
             <span className={styles.cardSubtitle}>{subtitle}</span>
           </div>
-          <span className={styles.statusPill}>
-            <Layers3 size={14} />
-            {pill}
-          </span>
+          {pillElement ?? (
+            <span className={styles.statusPill}>
+              <Layers3 size={14} />
+              {pill}
+            </span>
+          )}
         </div>
         <span className={styles.drawerToggle}>
           <ChevronDown size={18} />

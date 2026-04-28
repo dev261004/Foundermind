@@ -21,13 +21,24 @@ export interface MarketQuantitativeModel {
   [key: string]: number | string | null | undefined
 }
 
+export type MonetizationFitScore = "High" | "Medium" | "Low"
+export type MonetizationType = "B2B" | "API" | "B2C" | "Institutional"
+
+export interface MonetizationStrategyItem {
+  strategy_name: string
+  type: MonetizationType
+  description: string
+  fit_score: MonetizationFitScore
+  revenue_potential: number
+}
+
 export interface AgentAnalysisResults {
   similar_startups?: string
   market_data?: string
   market_quantitative_model?: MarketQuantitativeModel | null
   market_data_structured?: MarketDataStructured | null
   funding_info?: string
-  monetization?: string
+  monetization?: MonetizationStrategyItem[] | string | null
   customer_profile?: string
   tech_stack?: string
   swot?: string

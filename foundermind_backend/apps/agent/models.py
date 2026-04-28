@@ -36,7 +36,7 @@ class IdeaAnalysis(me.Document):
     market_data = me.StringField()
     market_quantitative_model = me.DictField()
     funding_info = me.StringField()
-    monetization = me.StringField()
+    monetization = me.ListField(me.DictField(), default=list)
     customer_profile = me.StringField()
     tech_stack = me.StringField()
     swot = me.StringField()

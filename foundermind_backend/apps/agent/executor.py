@@ -131,6 +131,24 @@ class ToolExecutor:
 
                     elif tool_name == "generate_monetization_strategy":
                         output = generate_monetization_strategy(idea)
+                        # Store list directly in results, serialize for log
+                        self._append_result(results, tool_name, output)
+                        import json as _json
+                        update_started_entry(tool_name, {
+                            "status": "success",
+                            "result": _json.dumps(output) if isinstance(output, list) else str(output),
+                            "message": f"{tool_name} completed.",
+                            "completed_at": self._timestamp(),
+                        })
+                        if executed_tool and index < len(steps) - 1:
+                            append_log({
+                                "type": "inter_tool_delay",
+                                "after_tool": tool_name,
+                                "delay_seconds": self.INTER_TOOL_GAP_SECONDS,
+                                "timestamp": self._timestamp(),
+                            })
+                            time.sleep(self.INTER_TOOL_GAP_SECONDS)
+                        continue
 
                     elif tool_name == "generate_customer_profile":
                         output = generate_customer_profile(idea)
@@ -142,12 +160,16 @@ class ToolExecutor:
                             output = "Not a technical startup."
 
                     elif tool_name == "generate_swot_analysis":
+                        monetization_for_swot = results.get("monetization", "")
+                        if isinstance(monetization_for_swot, list):
+                            import json as _json
+                            monetization_for_swot = _json.dumps(monetization_for_swot, indent=2)
                         output = generate_swot_analysis(
                             idea,
                             results.get("similar_startups", ""),
                             results.get("market_data", ""),
                             results.get("funding_info", ""),
-                            results.get("monetization", ""),
+                            monetization_for_swot,
                             results.get("customer_profile", ""),
                         )
                     else:
