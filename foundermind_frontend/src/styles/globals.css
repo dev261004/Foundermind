@@ -19,7 +19,25 @@
 }
  */
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --color-bg-primary: #0a0a0c;
+  --color-card-bg: #151518;
+  --color-accent-purple: #8b5cf6;
+  --color-accent-teal: #22d3ee;
+  --color-accent-green: #4ade80;
+  --font-display: "Space Grotesk", sans-serif;
+}
+
+.gradient-purple-teal {
+  background: linear-gradient(90deg, var(--color-accent-purple) 0%, var(--color-accent-teal) 100%);
+}
+
+.gradient-teal-green {
+  background: linear-gradient(90deg, var(--color-accent-teal) 0%, var(--color-accent-green) 100%);
+}
 
 /* ============================= */
 /* THEME VARIABLES */

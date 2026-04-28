@@ -1,3 +1,15 @@
+export interface MarketResearchPoint {
+  term: string
+  detail: string
+}
+
+export interface MarketDataStructured {
+  market_drivers: MarketResearchPoint[]
+  target_segments: MarketResearchPoint[]
+  competitive_landscape: MarketResearchPoint[]
+  key_signals: MarketResearchPoint[]
+}
+
 export interface MarketQuantitativeModel {
   tam_billion_usd?: number
   sam_billion_usd?: number
@@ -13,6 +25,7 @@ export interface AgentAnalysisResults {
   similar_startups?: string
   market_data?: string
   market_quantitative_model?: MarketQuantitativeModel | null
+  market_data_structured?: MarketDataStructured | null
   funding_info?: string
   monetization?: string
   customer_profile?: string

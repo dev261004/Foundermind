@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, ReactNode, useEffect } from "react"
+import { ReactNode, useEffect } from "react"
 import ReactMarkdown from "react-markdown"
 import Link from "next/link"
 import {
@@ -17,6 +17,8 @@ import {
 import { useRunStore } from "@/store/useRunStore"
 import { useIdeaStore } from "@/store/useIdeaStore"
 import { AgentAnalysisResponse, AgentExecutionLogEntry } from "@/types/analysis"
+import { MarketData, MarketDataHeader } from "@/components/results/MarketData"
+import { MarketDataEmpty } from "@/components/results/MarketData/MarketDataEmpty"
 import styles from "./IdeaAnalysisPage.module.css"
 
 interface Props {
@@ -92,46 +94,7 @@ const LOADING_STAGES = [
   "Final synthesis",
 ]
 
-const MARKET_MODEL_CONFIG: Record<
-  string,
-  { title: string; description: string; kind?: "currency" | "percent" | "score" }
-> = {
-  tam_billion_usd: {
-    title: "TAM",
-    description: "Total Addressable Market. The full revenue opportunity if the category is fully captured.",
-    kind: "currency",
-  },
-  sam_billion_usd: {
-    title: "SAM",
-    description: "Serviceable Available Market. The share of TAM that fits this product and go-to-market scope.",
-    kind: "currency",
-  },
-  som_billion_usd: {
-    title: "SOM",
-    description: "Serviceable Obtainable Market. The near-term market share this startup could realistically win.",
-    kind: "currency",
-  },
-  calculated_cagr: {
-    title: "Calculated CAGR",
-    description: "Compound Annual Growth Rate. How fast the market is expected to grow year over year.",
-    kind: "percent",
-  },
-  tam_score: {
-    title: "TAM Score",
-    description: "A 10-point attractiveness score based on how large the total market opportunity is.",
-    kind: "score",
-  },
-  cagr_score: {
-    title: "CAGR Score",
-    description: "A 10-point score showing how favorable the market growth rate looks.",
-    kind: "score",
-  },
-  opportunity_score: {
-    title: "Opportunity Score",
-    description: "A blended 10-point signal combining market size and growth into one opportunity view.",
-    kind: "score",
-  },
-}
+
 
 export default function IdeaAnalysisPage({ ideaId }: Props) {
   const startAnalysis = useRunStore((state) => state.startAnalysis)
@@ -228,11 +191,14 @@ function AnalysisContent({
   const showIncompleteSections = status === "partial" || status === "quota_exhausted"
   const sectionEntries = showIncompleteSections ? SECTION_CONFIG : SECTION_CONFIG.filter(({ key }) => {
     const value = result.results[key]
+    if (key === "market_data") {
+      const hasText = typeof value === "string" && value.trim().length > 0
+      const hasModel = result.results.market_quantitative_model &&
+        Object.keys(result.results.market_quantitative_model).length > 0
+      return hasText || hasModel
+    }
     return typeof value === "string" && value.trim().length > 0
   })
-
-  const marketModelEntries = Object.entries(result.results.market_quantitative_model ?? {})
-    .filter(([, value]) => value !== null && value !== undefined && value !== "")
 
   return (
     <div className={styles.sectionStack}>
@@ -274,27 +240,26 @@ function AnalysisContent({
         const hasContent = rawString.length > 0
 
         if (key === "market_data") {
-          if (!hasContent && marketModelEntries.length === 0 && !showIncompleteSections) {
-            return null
-          }
+          const hasQuantModel = !!(result.results.market_quantitative_model &&
+            Object.keys(result.results.market_quantitative_model).length > 0)
+          const hasText = rawString.length > 0
+          const hasAnyData = hasQuantModel || hasText
 
           return (
-            <DrawerSection
-              key={key}
-              title={title}
-              subtitle={subtitle}
-              pill={pill}
-              defaultOpen
-            >
-              {hasContent || marketModelEntries.length > 0 ? (
-                <MarketDataContent
-                  text={String(result.results.market_data ?? "")}
-                  marketModelEntries={marketModelEntries}
-                />
-              ) : (
-                <UnavailableSection sectionTitle={title} />
-              )}
-            </DrawerSection>
+            <details key={key} className={`${styles.drawer} group`} open={true}>
+              <MarketDataHeader />
+              <div className="w-full selection:bg-cyan-500/30 px-6 pb-6">
+                {hasAnyData ? (
+                  <MarketData
+                    text={rawString}
+                    quantitativeModel={result.results.market_quantitative_model ?? null}
+                    structured={result.results.market_data_structured ?? null}
+                  />
+                ) : (
+                  <MarketDataEmpty />
+                )}
+              </div>
+            </details>
           )
         }
 
@@ -424,44 +389,7 @@ function DrawerSection({
   )
 }
 
-function MarketDataContent({
-  text,
-  marketModelEntries,
-}: {
-  text: string
-  marketModelEntries: Array<[string, string | number | null | undefined]>
-}) {
-  return (
-    <div className={styles.marketLayout}>
-      {marketModelEntries.length > 0 && (
-        <section className={styles.marketGrid}>
-          {marketModelEntries.map(([key, value]) => {
-            const config = MARKET_MODEL_CONFIG[key] ?? {
-              title: humanizeKey(key),
-              description: "Quantitative market signal extracted from the market analysis.",
-            }
 
-            return (
-              <div key={key} className={styles.marketMetricCard}>
-                <span className={styles.marketMetricLabel}>{config.title}</span>
-                <strong className={styles.marketMetricValue}>
-                  {formatMetricValue(key, value, config.kind)}
-                </strong>
-                <p className={styles.marketMetricDescription}>{config.description}</p>
-              </div>
-            )
-          })}
-        </section>
-      )}
-
-      {text.trim().length > 0 && (
-        <div className={styles.narrativePanel}>
-          <ReactMarkdown>{text}</ReactMarkdown>
-        </div>
-      )}
-    </div>
-  )
-}
 
 function SectionRenderer({
   sectionKey,
@@ -732,31 +660,7 @@ function formatRunStatus(value?: string | null) {
   return humanizeKey(value)
 }
 
-function formatMetricValue(
-  key: string,
-  value: string | number | null | undefined,
-  kind?: "currency" | "percent" | "score"
-) {
-  if (typeof value !== "number") {
-    return String(value ?? "--")
-  }
 
-  const safeValue = Number.isFinite(value) ? value : 0
-
-  if (kind === "score" || key.includes("score")) {
-    return `${safeValue}/10`
-  }
-
-  if (kind === "percent" || key.includes("cagr")) {
-    return `${safeValue}%`
-  }
-
-  if (kind === "currency" || key.includes("_usd")) {
-    return `$${safeValue}B`
-  }
-
-  return String(safeValue)
-}
 
 function parseResearchFeed(sectionKey: ResearchSectionKey, text: string) {
   const blocks = splitBlocks(text)

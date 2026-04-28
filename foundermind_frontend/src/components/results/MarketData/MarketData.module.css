@@ -1,0 +1,559 @@
+/* ─── Wrapper ────────────────────────────────────────────────────────────────── */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ─── Zone 1 — Funnel + Gauges ───────────────────────────────────────────────── */
+
+/* Fix 8: outer container box wrapping all of zone1 */
+.zone1Outer {
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  margin: 20px 24px;
+}
+
+.zone1 {
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+}
+
+.funnelCol {
+  flex: 0 0 55%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.funnelLabel {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b6880;
+  font-family: "Courier New", Courier, monospace;
+  margin-bottom: 4px;
+}
+
+.funnelBars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Fix 1+2: bar group = bar + description stacked */
+.funnelBarGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.funnelBarDesc {
+  margin: 0;
+  font-size: 11px;
+  color: #6b6880;
+  line-height: 1.5;
+  padding-left: 4px;
+}
+
+.funnelBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.funnelBarTAM {
+  width: 100%;
+  height: 52px;
+  background: rgba(123, 47, 255, 0.15);
+  border-left: 3px solid #7b2fff;
+}
+
+.funnelBarSAM {
+  width: 65%;
+  height: 44px;
+  background: rgba(0, 212, 255, 0.08);
+  border-left: 3px solid #00d4ff;
+}
+
+.funnelBarSOM {
+  width: 35%;
+  height: 36px;
+  background: rgba(34, 197, 94, 0.08);
+  border-left: 3px solid #22c55e;
+}
+
+.funnelBarLabel {
+  font-family: "Syne", "Inter", sans-serif;
+  font-weight: 700;
+  color: #f4f7fb;
+  letter-spacing: -0.02em;
+}
+
+.funnelBarLabelTAM {
+  font-size: 22px;
+}
+
+.funnelBarLabelSAM {
+  font-size: 18px;
+}
+
+.funnelBarLabelSOM {
+  font-size: 15px;
+}
+
+.funnelBarKey {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9dabc1;
+  font-family: "Courier New", Courier, monospace;
+}
+
+.funnelCaption {
+  font-size: 11px;
+  color: #6b6880;
+  font-family: "Courier New", Courier, monospace;
+  margin-top: 4px;
+}
+
+/* ─── Gauge Column ───────────────────────────────────────────────────────────── */
+
+.gaugeCol {
+  flex: 0 0 45%;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: stretch;
+  justify-content: center;
+}
+
+/* Fix 3: each gauge wrapped in labeled container box */
+.gaugeBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.gaugeBoxTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9dabc1;
+}
+
+.gaugeBoxDesc {
+  font-size: 11px;
+  color: #6b6880;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.gaugeItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.gaugeLabel {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b6880;
+  font-family: "Courier New", Courier, monospace;
+  text-align: center;
+}
+
+.gaugeScoreInner {
+  font-family: "Syne", "Inter", sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  fill: #f4f7fb;
+  dominant-baseline: middle;
+  text-anchor: middle;
+}
+
+.cagrStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.cagrValue {
+  font-family: "Syne", "Inter", sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #22c55e;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* ─── Zone 2 — Opportunity Score Strip ──────────────────────────────────────── */
+.zone2 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 20px 24px;
+  background: rgba(123, 47, 255, 0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.zone2Left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opportunityLabel {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #a78bfa;
+  font-family: "Courier New", Courier, monospace;
+}
+
+.opportunityScore {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1;
+}
+
+.opportunityScoreValue {
+  font-family: "Syne", "Inter", sans-serif;
+  font-size: 52px;
+  font-weight: 700;
+  color: #f4f7fb;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.opportunityScoreDenom {
+  font-family: "Syne", "Inter", sans-serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: #6b6880;
+  line-height: 1;
+}
+
+.opportunityInterpretation {
+  font-size: 13px;
+  color: #6b6880;
+  font-style: italic;
+  line-height: 1.5;
+  max-width: 340px;
+  margin: 0;
+}
+
+/* Fix 5: gradient progress bar */
+.opportunityBar {
+  width: 100%;
+  max-width: 360px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.opportunityBarFill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #7b2fff, #00d4ff);
+  transition: width 0.6s ease;
+}
+
+.signalChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Fix 6: font-family: inherit (DM Sans), keep 11px */
+.signalChip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #c8d2e4;
+  white-space: nowrap;
+}
+
+.zone2Right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.gaugeCaption {
+  font-size: 10px;
+  font-family: "Courier New", Courier, monospace;
+  color: #6b6880;
+  text-align: center;
+  max-width: 160px;
+}
+
+/* ─── Zone 3 — Tabbed Research Panel ────────────────────────────────────────── */
+.zone3 {
+  display: flex;
+  flex-direction: column;
+}
+
+.tabRow {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0 24px;
+}
+
+.tab {
+  padding: 14px 16px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4a4762;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: #a0a0be;
+}
+
+.tabActive {
+  color: #f4f7fb;
+  border-bottom-color: #7b2fff;
+}
+
+.tabContent {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bulletRow {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: flex-start;
+  line-height: 1.9;
+}
+
+.bulletDash {
+  color: #7b2fff;
+  font-weight: 700;
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1.9;
+  user-select: none;
+}
+
+.bulletTerm {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f4f7fb;
+}
+
+.bulletDetail {
+  font-size: 13px;
+  color: #6b6880;
+  line-height: 1.9;
+}
+
+.bulletSep {
+  font-size: 13px;
+  color: #6b6880;
+}
+
+/* ─── Empty State ────────────────────────────────────────────────────────────── */
+.emptyWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.emptyIllustration {
+  flex-shrink: 0;
+}
+
+.emptyHeading {
+  font-family: "Syne", "Inter", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f4f7fb;
+  margin: 0;
+}
+
+.emptySubtitle {
+  font-size: 13px;
+  color: #6b6880;
+  max-width: 400px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.emptyPills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.emptyPill {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: "Courier New", Courier, monospace;
+  color: #9dabc1;
+}
+
+.emptyPillAmber {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+.emptyButtons {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.emptyBtnPrimary {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #a78bfa;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.emptyBtnPrimary:hover {
+  background: rgba(124, 92, 252, 0.06);
+}
+
+.emptyBtnSecondary {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 400;
+  color: #6b6880;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.emptyBtnSecondary:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.skeletonBars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.skeletonBar {
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor {
+  animation: blink 1s step-start infinite;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .zone1 {
+    flex-direction: column;
+  }
+
+  .funnelCol,
+  .gaugeCol {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .funnelBarSAM {
+    width: 80%;
+  }
+
+  .funnelBarSOM {
+    width: 55%;
+  }
+
+  .zone2 {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tabRow {
+    overflow-x: auto;
+    padding: 0 16px;
+  }
+}
