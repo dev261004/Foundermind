@@ -35,7 +35,7 @@ class IdeaAnalysis(me.Document):
     similar_startups = me.StringField()
     market_data = me.StringField()
     market_quantitative_model = me.DictField()
-    funding_info = me.StringField()
+    funding_info = me.ListField(me.DictField(), default=list)
     monetization = me.StringField()
     customer_profile = me.StringField()
     tech_stack = me.StringField()

@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react"
+import { FundingLandscape } from "../results/FundingLandscape"
 import { useRunStore } from "@/store/useRunStore"
 import { useIdeaStore } from "@/store/useIdeaStore"
 import { AgentAnalysisResponse, AgentExecutionLogEntry } from "@/types/analysis"
@@ -208,7 +209,7 @@ export default function IdeaAnalysisPage({ ideaId }: Props) {
           />
         )}
         {(status === "completed" || status === "partial" || status === "quota_exhausted") && result && (
-          <AnalysisContent result={result} status={status} bannerMessage={error} />
+          <AnalysisContent result={result} status={status} bannerMessage={error} ideaId={ideaId} />
         )}
       </div>
     </main>
@@ -219,11 +220,14 @@ function AnalysisContent({
   result,
   status,
   bannerMessage,
+  ideaId,
 }: {
   result: AgentAnalysisResponse
   status: "completed" | "partial" | "quota_exhausted"
   bannerMessage?: string | null
+  ideaId: string
 }) {
+  const startAnalysis = useRunStore((state) => state.startAnalysis)
   const showIncompleteSections = status === "partial" || status === "quota_exhausted"
   const sectionEntries = showIncompleteSections ? SECTION_CONFIG : SECTION_CONFIG.filter(({ key }) => {
     const value = result.results[key]
@@ -310,7 +314,12 @@ function AnalysisContent({
           >
             {!hasContent ? (
               <UnavailableSection sectionTitle={title} />
-            ) : key === "similar_startups" || key === "funding_info" ? (
+            ) : key === "funding_info" ? (
+              <FundingLandscape
+                data={result.results[key]!}
+                onRetry={() => void startAnalysis(ideaId, { force: true })}
+              />
+            ) : key === "similar_startups" ? (
               <ResearchFeedSection
                 sectionKey={key}
                 text={String(result.results[key] ?? "")}

@@ -1,0 +1,266 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background-color: #0f172a;
+  padding: 1.5rem;
+  border-radius: 8px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 1rem;
+}
+
+.headerTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.headerH2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.headerSubtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.headerPill {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.cardLeft {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.companyName {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.amount {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 32px;
+  color: #22c55e;
+  line-height: 1.2;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.cardCenter {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.description {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.investors {
+  font-size: 0.875rem;
+  color: #cbd5e1;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.investorLabel {
+  color: #f8fafc;
+}
+
+.cardRight {
+  width: 24px;
+  height: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+}
+
+.progressBarBg {
+  width: 8px;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.progressBarFill {
+  width: 100%;
+  background-color: #22c55e;
+  border-radius: 4px;
+  transition: height 0.3s ease;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  text-align: center;
+  gap: 1.5rem;
+}
+
+.radarWrapper {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radarSvg {
+  color: #3b82f6;
+  animation: radarSpin 4s linear infinite;
+}
+
+@keyframes radarSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.radarRing {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(59, 130, 246, 0.2);
+  border-radius: 50%;
+  animation: radarPulse 2s ease-out infinite;
+}
+
+@keyframes radarPulse {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #f8fafc;
+}
+
+.emptyDesc {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  max-width: 400px;
+}
+
+.emptyPills {
+  display: flex;
+  gap: 1rem;
+}
+
+.emptyPill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+}
+
+.retryContainer {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.retryButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retryButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.legacyContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.legacyText {
+  white-space: pre-wrap;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}

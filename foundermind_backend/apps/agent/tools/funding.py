@@ -20,22 +20,27 @@ def _format_search_results(results: list[dict]) -> str:
     return "\n\n".join(lines)
 
 
-def search_funding_info(idea: str) -> str:
+import json
+
+def search_funding_info(idea: str) -> list[dict]:
     query = f"{idea} startup funding site:crunchbase.com"
     results = search_google(query)
 
     if not results:
-        return "No funding info found."
+        return []
 
     prompt = f"""
-You are summarizing funding research for a startup idea.
+Based on the following search results about startup funding, provide a summary of the funding landscape for a startup doing: {idea}
 
-Using only the search results below, extract the most relevant funding signals,
-recent fundraises, and investor references. Keep the answer concise and cite the
-links you relied on.
+Return the data STRICTLY as a JSON array of objects. Do not include any other text or markdown formatting. The array should contain objects with the following keys:
+- company_name: string
+- funding_amount: string
+- funding_stage: string (must be exactly one of: Pre-Seed, Seed, Series A, Series B, Series C, Series D+, Unknown)
+- description: string
+- investors: array of strings
+- relevance_score: integer between 0 and 100
 
-Startup Idea:
-{idea}
+You must filter the results such that you return a maximum of 5 entries, and skip any results with a relevance score below 40.
 
 Search Results:
 {_format_search_results(results)}
@@ -43,8 +48,25 @@ Search Results:
 
     model = settings.AGENT_MODELS["tool_light"]
     fallback = settings.AGENT_MODELS["fallback_gemma"]
-    return call_llm(
+    response_text = call_llm(
         prompt,
         model=model,
         fallback_model=fallback,
     )
+
+    try:
+        # Strip markdown formatting if any
+        clean_text = response_text.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:].strip()
+        if clean_text.startswith("```"):
+            clean_text = clean_text[3:].strip()
+        if clean_text.endswith("```"):
+            clean_text = clean_text[:-3].strip()
+
+        data = json.loads(clean_text)
+        if isinstance(data, list):
+            return data
+        return []
+    except Exception:
+        return []

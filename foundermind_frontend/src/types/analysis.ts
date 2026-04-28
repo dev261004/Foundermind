@@ -9,11 +9,20 @@ export interface MarketQuantitativeModel {
   [key: string]: number | string | null | undefined
 }
 
+export interface FundingInfoItem {
+  company_name: string
+  funding_amount: string
+  funding_stage: string
+  description: string
+  investors: string[]
+  relevance_score?: number
+}
+
 export interface AgentAnalysisResults {
   similar_startups?: string
   market_data?: string
   market_quantitative_model?: MarketQuantitativeModel | null
-  funding_info?: string
+  funding_info?: string | FundingInfoItem[]
   monetization?: string
   customer_profile?: string
   tech_stack?: string
