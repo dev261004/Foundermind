@@ -22,11 +22,24 @@ const QUADRANT_COLORS = {
 
 const pageStyle: React.CSSProperties = {
   width: "210mm",
-  padding: "48px 44px",
+  padding: "40px 44px",
   backgroundColor: "#ffffff",
   boxSizing: "border-box",
   fontFamily: "Arial, Helvetica, sans-serif",
   color: "#1e293b",
+};
+
+const coverPageStyle: React.CSSProperties = {
+  ...pageStyle,
+  display: "flex",
+  flexDirection: "column",
+};
+
+const quadrantPageStyle: React.CSSProperties = {
+  ...pageStyle,
+  display: "flex",
+  flexDirection: "column",
+  position: "relative"
 };
 
 const hrStyle: React.CSSProperties = {
@@ -35,7 +48,7 @@ const hrStyle: React.CSSProperties = {
   margin: "24px 0",
 };
 
-const PageBreak = () => <div className="html2pdf__page-break" />;
+const PageBreak = () => <div className="html2pdf__page-break" style={{ height: 0, margin: 0, padding: 0 }} />;
 
 // ─── Helper Components ───────────────────────────────────────────────────────
 
@@ -119,15 +132,15 @@ function ItemCard({
       </div>
 
       {/* Detail */}
-      <p style={{ fontSize: 13, lineHeight: 1.6, color: "#334155", margin: "0 0 16px 0", textAlign: "justify" }}>
+      <p style={{ fontSize: 13, lineHeight: 1.6, color: "#334155", margin: "0 0 16px 0", textAlign: "justify", fontFamily: "Georgia, 'Times New Roman', serif" }}>
         {detail}
       </p>
 
       {/* Deep Dive */}
       {deepDive && (
         <div style={{ marginBottom: 16, paddingLeft: 12, borderLeft: `3px solid #e2e8f0` }}>
-          <p style={{ fontSize: 11, fontWeight: "bold", color: "#64748b", margin: "0 0 4px 0" }}>DEEP DIVE</p>
-          <p style={{ fontSize: 12, lineHeight: 1.6, color: "#475569", margin: 0, fontStyle: "italic" }}>
+          <p style={{ fontSize: 11, fontWeight: "bold", color: "#64748b", margin: "0 0 4px 0", fontFamily: "Arial, sans-serif" }}>DEEP DIVE</p>
+          <p style={{ fontSize: 12, lineHeight: 1.6, color: "#475569", margin: 0, fontStyle: "italic", fontFamily: "Georgia, 'Times New Roman', serif" }}>
             {deepDive}
           </p>
         </div>
@@ -136,8 +149,8 @@ function ItemCard({
       {/* Strategic Imperatives */}
       {imperatives.length > 0 && (
         <div>
-          <p style={{ fontSize: 11, fontWeight: "bold", color: "#64748b", margin: "0 0 8px 0" }}>STRATEGIC IMPERATIVES</p>
-          <ul style={{ margin: 0, paddingLeft: 16, listStyleType: "disc", color: "#475569" }}>
+          <p style={{ fontSize: 11, fontWeight: "bold", color: "#64748b", margin: "0 0 8px 0", fontFamily: "Arial, sans-serif" }}>STRATEGIC IMPERATIVES</p>
+          <ul style={{ margin: 0, paddingLeft: 16, listStyleType: "disc", color: "#475569", fontFamily: "Georgia, 'Times New Roman', serif" }}>
             {imperatives.map((imp, idx) => (
               <li key={idx} style={{ fontSize: 12, lineHeight: 1.6, marginBottom: 4 }}>
                 {imp}
@@ -162,13 +175,20 @@ function QuadrantPage({
   children: React.ReactNode;
 }) {
   return (
-    <div style={pageStyle}>
-      <div style={{ borderBottom: `4px solid ${accentColor}`, paddingBottom: 12, marginBottom: 32 }}>
-        <h2 style={{ fontSize: 24, fontWeight: "bold", color: "#0f172a", margin: 0, textTransform: "uppercase" }}>
-          {title}
-        </h2>
+    <div style={quadrantPageStyle}>
+      <div style={{ position: "relative", zIndex: 1, flex: 1 }}>
+        {/* Header Ribbon */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, borderBottom: `4px solid ${accentColor}`, paddingBottom: 12 }}>
+          <h2 style={{ fontSize: 24, fontWeight: "bold", color: "#0f172a", margin: 0, textTransform: "uppercase" }}>
+            {title}
+          </h2>
+          <span style={{ fontSize: 10, fontWeight: "bold", color: "#94a3b8", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+            Strategic SWOT Analysis
+          </span>
+        </div>
+        
+        {children}
       </div>
-      {children}
     </div>
   );
 }
@@ -208,23 +228,29 @@ export default function SWOTPDFTemplate({ data, ideaName }: SWOTPDFTemplateProps
       }}
     >
       {/* ── Page 1: Cover & Summary ────────────────────────────────────────── */}
-      <div style={pageStyle}>
-        <div style={{ textAlign: "center", marginTop: 80, marginBottom: 60 }}>
-          <p style={{ fontSize: 12, fontWeight: "bold", color: "#64748b", letterSpacing: "0.1em", margin: "0 0 24px 0" }}>
-            CONFIDENTIAL STRATEGIC ANALYSIS
+      <div style={coverPageStyle}>
+        
+        <div style={{ textAlign: "center", marginTop: "30mm", marginBottom: "30mm" }}>
+          <p style={{ fontSize: 14, fontWeight: "bold", color: "#64748b", letterSpacing: "0.15em", margin: "0 0 32px 0" }}>
+            CONFIDENTIAL STRATEGIC REPORT
           </p>
-          <h1 style={{ fontSize: 36, fontWeight: "bold", color: "#0f172a", margin: "0 0 16px 0", lineHeight: 1.2 }}>
+          <h1 style={{ fontSize: 42, fontWeight: "900", color: "#0f172a", margin: "0 0 24px 0", lineHeight: 1.15, textTransform: "uppercase" }}>
             {ideaName}
           </h1>
-          <hr style={{ width: "60px", border: "none", borderTop: "2px solid #0f172a", margin: "0 auto 24px auto" }} />
-          <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
-            Prepared by FounderMind • {generatedDate}
-          </p>
+          <hr style={{ width: "80px", border: "none", borderTop: "3px solid #0f172a", margin: "0 auto 32px auto" }} />
+          
+          <div style={{ fontSize: 14, color: "#475569", lineHeight: 1.8 }}>
+            <p style={{ margin: 0, fontWeight: "bold" }}>PREPARED BY</p>
+            <p style={{ margin: 0 }}>FounderMind Intelligence</p>
+            <p style={{ margin: 0, marginTop: 16, fontWeight: "bold" }}>DATE GENERATED</p>
+            <p style={{ margin: 0 }}>{generatedDate}</p>
+          </div>
         </div>
 
-        <h3 style={{ fontSize: 14, fontWeight: "bold", color: "#0f172a", borderBottom: "1px solid #cbd5e1", paddingBottom: 8, margin: "0 0 16px 0" }}>
-          EXECUTIVE SUMMARY
-        </h3>
+        <div style={{ marginTop: "auto" }}>
+          <h3 style={{ fontSize: 14, fontWeight: "bold", color: "#0f172a", borderBottom: "2px solid #cbd5e1", paddingBottom: 8, margin: "0 0 16px 0" }}>
+            EXECUTIVE SUMMARY
+          </h3>
         
         <SummaryTable 
           strengths={strengths.length} 
@@ -245,12 +271,13 @@ export default function SWOTPDFTemplate({ data, ideaName }: SWOTPDFTemplateProps
         </div>
 
         {critical_insight.label && (
-          <div style={{ padding: "16px 20px", border: "1px solid #fecdd3", borderLeft: "4px solid #f43f5e", backgroundColor: "#fff1f2" }}>
+          <div style={{ padding: "16px 20px", border: "1px solid #fecdd3", borderLeft: "4px solid #f43f5e", backgroundColor: "#fff1f2", marginBottom: 32 }}>
             <p style={{ fontSize: 11, fontWeight: "bold", color: "#f43f5e", margin: "0 0 8px 0" }}>CRITICAL INSIGHT</p>
             <h4 style={{ fontSize: 16, fontWeight: "bold", color: "#0f172a", margin: "0 0 8px 0" }}>{critical_insight.label}</h4>
             <p style={{ fontSize: 13, lineHeight: 1.6, color: "#334155", margin: 0 }}>{critical_insight.detail}</p>
           </div>
         )}
+        </div>
       </div>
 
       <PageBreak />
@@ -319,7 +346,7 @@ export async function downloadSWOTPDF(
 
     await html2pdf()
       .set({
-        margin: 0,
+        margin: [0, 0, 15, 0], // Leave 15mm at bottom for the native footer
         filename,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
@@ -338,6 +365,31 @@ export async function downloadSWOTPDF(
         pagebreak: { mode: ["css", "legacy"] },
       } as Record<string, unknown>)
       .from(htmlString)
+      .toPdf()
+      .get('pdf')
+      .then((pdf: any) => {
+        const totalPages = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          pdf.setPage(i);
+          
+          // Draw horizontal line
+          pdf.setDrawColor(203, 213, 225); // #cbd5e1
+          pdf.setLineWidth(0.5);
+          pdf.line(12, 285, 198, 285);
+          
+          // Left side: FOUNDERMIND
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(9);
+          pdf.setTextColor(148, 163, 184); // #94a3b8
+          pdf.text("FOUNDERMIND", 12, 291);
+          
+          // Right side: Legend
+          pdf.setFont("times", "italic");
+          pdf.setFontSize(9);
+          pdf.setTextColor(100, 116, 139); // #64748b
+          pdf.text("AI-Powered Startup Intelligence", 198, 291, { align: "right" });
+        }
+      })
       .save();
 
     onSuccess?.();
