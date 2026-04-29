@@ -378,18 +378,12 @@ function AnalysisContent({
           }
 
           return (
-            <DrawerSection
-              key={key}
-              title={title}
-              subtitle={subtitle}
-              pill={pill}
-              defaultOpen
-            >
+            <div key={key} className={`${styles.drawer} mb-6`}>
               <StrategicSWOT
                 swot={rawSwot as SWOTAnalysis}
                 ideaName={runTitle}
               />
-            </DrawerSection>
+            </div>
           );
         }
 

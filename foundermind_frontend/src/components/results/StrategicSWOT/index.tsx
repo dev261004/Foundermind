@@ -4,8 +4,9 @@ import React, { useState } from "react"
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Star, Zap,
   ShieldAlert, Rocket, Target, Info, Download, FileText,
-  X, CheckCircle,
+  X, CheckCircle, ChevronUp, Layers, ChevronDown, Loader2
 } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import type {
   SWOTAnalysis,
   SWOTStrengthItem,
@@ -203,7 +204,7 @@ function Quadrant({ data, onExplore }: { data: QuadrantView; onExplore: () => vo
 
 // ─── Quadrant Detail View ────────────────────────────────────────────────────
 
-function QuadrantDetailView({ data, onBack, onDownload }: { data: QuadrantView; onBack: () => void; onDownload: () => void }) {
+function QuadrantDetailView({ data, onBack, onDownload, isDownloading, showLoader }: { data: QuadrantView; onBack: () => void; onDownload: () => void; isDownloading?: boolean; showLoader?: boolean }) {
   const Icon = data.icon
   const c = COLOR_MAP[data.colorName]
   return (
@@ -212,9 +213,20 @@ function QuadrantDetailView({ data, onBack, onDownload }: { data: QuadrantView; 
         <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
           <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
         </button>
-        <button onClick={onDownload} className="flex items-center gap-2 bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-lg font-medium text-sm transition-colors border border-indigo-500/20 hover:bg-indigo-500/20">
-          <Download className="w-4 h-4" /> Download Report
-        </button>
+        <div className="relative group/download">
+          <button 
+            onClick={onDownload}
+            disabled={isDownloading}
+            className={`flex items-center gap-2 bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-lg font-medium text-sm transition-colors border border-indigo-500/20 ${isDownloading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-500/20'}`}
+          >
+            {showLoader ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {showLoader ? 'Downloading...' : 'Download Report'}
+          </button>
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-slate-200 text-xs font-medium rounded-lg opacity-0 invisible group-hover/download:opacity-100 group-hover/download:visible transition-all whitespace-nowrap border border-slate-700 shadow-xl z-50">
+            Download Full SWOT Report
+            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-slate-800" />
+          </div>
+        </div>
       </div>
       <div className="relative rounded-3xl border border-slate-800 flex flex-col overflow-hidden bg-slate-900/40 backdrop-blur-xl mb-12 shadow-2xl">
         <div className="absolute inset-0 z-0 opacity-10 mix-blend-overlay grayscale" style={{ backgroundImage: `url(${data.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
@@ -282,7 +294,10 @@ interface StrategicSWOTProps {
 
 export function StrategicSWOT({ swot, ideaName }: StrategicSWOTProps) {
   const [activeQuadrant, setActiveQuadrant] = useState<QuadrantKey | null>(null)
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null)
+  const [isExpanded, setIsExpanded] = useState(true)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [showLoader, setShowLoader] = useState(false)
 
   const quadrants = buildQuadrants(swot)
   const activeData = activeQuadrant ? quadrants.find((q) => q.key === activeQuadrant) : null
@@ -293,10 +308,27 @@ export function StrategicSWOT({ swot, ideaName }: StrategicSWOTProps) {
         : "text-rose-400 bg-rose-500/10 border-rose-500/20 shadow-[0_0_20px_-5px_rgba(244,63,94,0.3)]"
 
   const handleDownload = async () => {
-    await downloadSWOTPDF(SWOT_PDF_ELEMENT_ID, ideaName, () => {
-      setToastMessage("Report downloaded successfully.")
+    if (isDownloading) return;
+    setIsDownloading(true);
+    
+    // Only show the loader if it takes more than 300ms
+    const loaderTimeout = setTimeout(() => {
+      setShowLoader(true);
+    }, 300);
+
+    try {
+      await downloadSWOTPDF(SWOT_PDF_ELEMENT_ID, ideaName, () => {
+        setToastMessage({ text: "Report downloaded successfully.", type: 'success' })
+        setTimeout(() => setToastMessage(null), 4000)
+      })
+    } catch (err) {
+      setToastMessage({ text: "Download failed. Please try again.", type: 'error' })
       setTimeout(() => setToastMessage(null), 4000)
-    })
+    } finally {
+      clearTimeout(loaderTimeout);
+      setIsDownloading(false);
+      setShowLoader(false);
+    }
   }
 
   return (
@@ -304,10 +336,20 @@ export function StrategicSWOT({ swot, ideaName }: StrategicSWOTProps) {
       {/* Toast */}
       {toastMessage && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] animate-in slide-in-from-top-4 fade-in duration-300">
-          <div className="bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md text-emerald-100 px-5 py-3 rounded-xl shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)] flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-emerald-400" />
-            <span className="font-medium text-sm">{toastMessage}</span>
-            <button onClick={() => setToastMessage(null)} className="ml-2 text-emerald-400/70 hover:text-emerald-400 transition-colors">
+          <div className={`backdrop-blur-md px-5 py-3 rounded-xl flex items-center gap-3 border ${
+            toastMessage.type === 'success' 
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-100 shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]' 
+            : 'bg-rose-500/10 border-rose-500/20 text-rose-100 shadow-[0_0_30px_-5px_rgba(244,63,94,0.3)]'
+          }`}>
+            {toastMessage.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-rose-400" />
+            )}
+            <span className="font-medium text-sm">{toastMessage.text}</span>
+            <button onClick={() => setToastMessage(null)} className={`ml-2 transition-colors ${
+              toastMessage.type === 'success' ? 'text-emerald-400/70 hover:text-emerald-400' : 'text-rose-400/70 hover:text-rose-400'
+            }`}>
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -317,107 +359,167 @@ export function StrategicSWOT({ swot, ideaName }: StrategicSWOTProps) {
       {/* Hidden PDF template */}
       <SWOTPDFTemplate data={swot} ideaName={ideaName} />
 
-      {activeData ? (
-        <QuadrantDetailView data={activeData} onBack={() => setActiveQuadrant(null)} onDownload={handleDownload} />
-      ) : (
-        <div>
-          {/* Critical Insight Banner */}
-          {swot.critical_insight.label && (
-            <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-5 flex gap-5 items-start shadow-[0_0_40px_-15px_rgba(244,63,94,0.15)] flex-col sm:flex-row relative overflow-hidden backdrop-blur-xl">
-              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-rose-500 to-rose-700" />
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500/20 to-rose-600/10 flex items-center justify-center shrink-0 border border-rose-500/20 z-10 ml-1">
-                <AlertTriangle className="w-6 h-6 text-rose-500" />
-              </div>
-              <div className="z-10 flex-grow">
-                <div className="flex items-center gap-3 mb-1.5">
-                  <div className="text-[11px] font-bold tracking-widest text-rose-400 uppercase">Critical Threat Detected</div>
-                  <div className="h-px flex-grow bg-gradient-to-r from-rose-900/50 to-transparent" />
-                </div>
-                <p className="text-rose-100/90 text-base leading-relaxed">
-                  <strong className="text-white font-semibold">{swot.critical_insight.label}</strong> &mdash; {swot.critical_insight.detail}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* SWOT Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative mt-6">
-            {quadrants.map((q) => (
-              <Quadrant key={q.key} data={q} onExplore={() => setActiveQuadrant(q.key)} />
-            ))}
-          </div>
-
-          {/* Competitive Position */}
-          <div className="bg-slate-900/40 rounded-2xl border border-slate-800 p-8 shadow-2xl backdrop-blur-lg mt-8 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_rgba(99,102,241,0.05)_0%,_transparent_70%)] pointer-events-none" />
-            <div className="flex flex-col lg:flex-row lg:justify-between items-start lg:items-center mb-10 gap-6 relative z-10">
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <Target className="w-4 h-4 text-indigo-400" />
-                  <h3 className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Market Stance</h3>
-                </div>
-                <h2 className="text-2xl font-bold text-white tracking-tight">Competitive Position</h2>
-              </div>
-              <div className="text-left lg:text-center mt-2 lg:mt-0 lg:absolute lg:left-1/2 lg:-translate-x-1/2">
-                <div className={`inline-flex items-center justify-center px-4 py-1.5 rounded-full font-semibold text-sm mb-2 border ${stanceColor}`}>
-                  {swot.competitive_position.stance}
-                </div>
-                <div className="text-[13px] text-slate-400 leading-relaxed max-w-sm">{swot.competitive_position.description}</div>
-              </div>
-              <div className="hidden lg:block w-[150px]" />
-            </div>
-            <div className="relative pt-4 pb-4 px-2 z-10">
-              <div className="h-3.5 w-full rounded-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 relative shadow-inner flex items-center">
-                <div className="absolute inset-0 rounded-full border border-white/10 mix-blend-overlay" />
-                <div
-                  className="absolute top-1/2 -translate-y-1/2 -ml-4 w-8 h-8 bg-white rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] border-2 border-slate-600 flex items-center justify-center"
-                  style={{ left: `${Math.max(0, Math.min(100, swot.competitive_position.score))}%` }}
-                >
-                  <div className="w-2 h-2 rounded-full bg-slate-600" />
-                </div>
-              </div>
-              <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest text-slate-500 mt-6 px-1 relative">
-                <div className="group flex flex-col items-start cursor-help">
-                  <div className="flex items-center gap-1.5 text-rose-500/70 hover:text-rose-400 transition-colors">
-                    Vulnerable <Info className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-                <div className="group flex flex-col items-center cursor-help">
-                  <div className="flex items-center gap-1.5 text-amber-500/70 hover:text-amber-400 transition-colors translate-x-[-15px]">
-                    At Risk <Info className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-                <div className="group flex flex-col items-end cursor-help">
-                  <div className="flex items-center gap-1.5 text-emerald-500/70 hover:text-emerald-400 transition-colors">
-                    <Info className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" /> Strong
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Download CTA */}
-          <div className="mt-8 bg-gradient-to-r from-indigo-900/40 to-slate-900 border border-indigo-500/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden backdrop-blur-sm shadow-xl hover:border-indigo-500/40 transition-colors">
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 z-10">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 flex-shrink-0 shadow-[0_0_30px_-10px_rgba(99,102,241,0.4)]">
-                <FileText className="w-7 h-7 text-indigo-400" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white tracking-tight mb-1">In-Depth Strategic Report</h3>
-                <p className="text-[15px] text-indigo-100/70">Get The Full Comprehensive Analysis Of Your SWOT In A Detailed PDF</p>
-              </div>
-            </div>
-            <button
-              onClick={handleDownload}
-              className="z-10 shrink-0 w-full md:w-auto px-6 py-3.5 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-medium rounded-xl transition-all shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)] hover:shadow-[0_0_25px_-5px_rgba(99,102,241,0.6)] flex items-center justify-center gap-2.5 group"
-            >
-              <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
-              Download Report (.pdf)
-            </button>
-          </div>
+      {/* Header aligned with DrawerSection */}
+      <header 
+        className="flex items-center justify-between gap-4 p-[24px] cursor-pointer hover:bg-white/[0.01] transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex flex-col gap-[6px]">
+          <h2 className="text-[20px] font-semibold text-white leading-[1.2]">Strategic SWOT</h2>
+          <span className="text-[13px] text-[#8f9cb4] leading-[1.5]">A concise strategic read across strengths, risks, openings, and threats.</span>
         </div>
-      )}
+        
+        <div className="flex items-center gap-3 shrink-0">
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+            disabled={isDownloading}
+            className={`flex items-center gap-2 bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-lg font-medium text-sm transition-colors border border-indigo-500/20 ${isDownloading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-500/20'}`}
+          >
+            {showLoader ? <Loader2 className="w-4 h-4 animate-spin" /> : <Layers className="w-4 h-4" />}
+            {showLoader ? 'Downloading...' : 'Download Report'}
+          </button>
+          <span 
+            className="inline-flex items-center justify-center w-[38px] h-[38px] rounded-xl transition-transform duration-200"
+            style={{ 
+              background: 'rgba(255, 255, 255, 0.05)', 
+              color: '#cbd5e5',
+              transform: isExpanded ? 'rotate(180deg)' : 'none'
+            }}
+          >
+            <ChevronDown className="w-[18px] h-[18px]" />
+          </span>
+        </div>
+      </header>
+
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="px-[24px] pb-[24px]">
+            {activeData ? (
+              <QuadrantDetailView data={activeData} onBack={() => setActiveQuadrant(null)} onDownload={handleDownload} isDownloading={isDownloading} showLoader={showLoader} />
+            ) : (
+              <div>
+                {/* Critical Insight Banner */}
+                {swot.critical_insight.label && (
+                  <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-5 flex gap-5 items-start shadow-[0_0_40px_-15px_rgba(244,63,94,0.15)] flex-col sm:flex-row relative overflow-hidden backdrop-blur-xl">
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-rose-500 to-rose-700" />
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500/20 to-rose-600/10 flex items-center justify-center shrink-0 border border-rose-500/20 z-10 ml-1">
+                      <AlertTriangle className="w-6 h-6 text-rose-500" />
+                    </div>
+                    <div className="z-10 flex-grow">
+                      <div className="flex items-center gap-3 mb-1.5">
+                        <div className="text-sm font-bold tracking-widest text-rose-400 uppercase">Critical Threat Detected</div>
+                        <div className="h-px flex-grow bg-gradient-to-r from-rose-900/50 to-transparent" />
+                      </div>
+                      <p className="text-rose-100/90 text-base leading-relaxed">
+                        <strong className="text-white font-semibold">{swot.critical_insight.label}</strong> &mdash; {swot.critical_insight.detail}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* SWOT Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative mt-6">
+                  {quadrants.map((q) => (
+                    <Quadrant key={q.key} data={q} onExplore={() => setActiveQuadrant(q.key)} />
+                  ))}
+                </div>
+
+                {/* Competitive Position */}
+                <div className="bg-slate-900/40 rounded-2xl border border-slate-800 p-8 shadow-2xl backdrop-blur-lg mt-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_rgba(99,102,241,0.05)_0%,_transparent_70%)] pointer-events-none" />
+                  <div className="flex flex-col lg:flex-row lg:justify-between items-start lg:items-center mb-10 gap-6 relative z-10">
+                    <div>
+                      <div className="flex items-center gap-3 mb-1">
+                        <Target className="w-4 h-4 text-indigo-400" />
+                        <h3 className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Market Stance</h3>
+                      </div>
+                      <h2 className="text-2xl font-bold text-white tracking-tight">Competitive Position</h2>
+                    </div>
+                    <div className="text-left lg:text-center mt-2 lg:mt-0 lg:absolute lg:left-1/2 lg:-translate-x-1/2">
+                      <div className={`inline-flex items-center justify-center px-4 py-1.5 rounded-full font-semibold text-sm mb-2 border ${stanceColor}`}>
+                        {swot.competitive_position.stance}
+                      </div>
+                      <div className="text-[13px] text-slate-400 leading-relaxed max-w-sm">{swot.competitive_position.description}</div>
+                    </div>
+                    <div className="hidden lg:block w-[150px]" />
+                  </div>
+                  <div className="relative pt-4 pb-4 px-2 z-10">
+                    <div className="h-3.5 w-full rounded-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 relative shadow-inner flex items-center">
+                      <div className="absolute inset-0 rounded-full border border-white/10 mix-blend-overlay" />
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 -ml-4 w-8 h-8 bg-white rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] border-2 border-emerald-500 cursor-grab flex items-center justify-center transition-transform hover:scale-110 group/handle"
+                        style={{ left: `${Math.max(0, Math.min(100, swot.competitive_position.score))}%` }}
+                      >
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 group-hover/handle:scale-125 transition-transform" />
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest text-slate-500 mt-6 px-1 relative">
+                      <div className="group flex flex-col items-start cursor-pointer">
+                        <div className="flex items-center gap-1.5 text-rose-500/70 hover:text-rose-400 transition-colors">
+                          Vulnerable <Info className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <div className="absolute bottom-full mb-3 left-0 w-60 p-3.5 bg-slate-800/95 backdrop-blur-md rounded-xl text-xs text-slate-300 normal-case tracking-normal shadow-2xl border border-rose-500/20 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300 z-20 translate-y-1 group-hover:translate-y-[-4px] text-center">
+                          Easily replicated or replaced by competitors. Low switching costs for users.
+                        </div>
+                      </div>
+                      <div className="group flex flex-col items-center cursor-pointer">
+                        <div className="flex items-center gap-1.5 text-amber-500/70 hover:text-amber-400 transition-colors translate-x-[-15px]">
+                          At Risk <Info className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <div className="absolute bottom-full mb-3 left-1/2 -translate-x-[calc(50%+15px)] w-60 p-3.5 bg-slate-800/95 backdrop-blur-md rounded-xl text-xs text-slate-300 normal-case tracking-normal shadow-2xl border border-amber-500/20 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300 z-20 text-center translate-y-1 group-hover:translate-y-[-4px]">
+                          Some differentiation, but susceptible to market shifts or well-funded incumbents.
+                        </div>
+                      </div>
+                      <div className="group flex flex-col items-end cursor-pointer">
+                        <div className="flex items-center gap-1.5 text-emerald-500/70 hover:text-emerald-400 transition-colors">
+                          <Info className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" /> Strong
+                        </div>
+                        <div className="absolute bottom-full mb-3 right-0 w-60 p-3.5 bg-slate-800/95 backdrop-blur-md rounded-xl text-xs text-slate-300 normal-case tracking-normal shadow-2xl border border-emerald-500/20 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300 z-20 text-center translate-y-1 group-hover:translate-y-[-4px]">
+                          Highly defensible moat. Strong brand loyalty, network effects, or proprietary tech.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Download CTA */}
+                <div className="mt-8 bg-gradient-to-r from-indigo-900/40 to-slate-900 border border-indigo-500/20 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden backdrop-blur-sm shadow-xl hover:border-indigo-500/40 transition-colors">
+                  <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 z-10">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 flex-shrink-0 shadow-[0_0_30px_-10px_rgba(99,102,241,0.4)]">
+                      <FileText className="w-7 h-7 text-indigo-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white tracking-tight mb-1">In-Depth Strategic Report</h3>
+                      <p className="text-[15px] text-indigo-100/70">Get The Full Comprehensive Analysis Of Your SWOT In A Detailed PDF</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleDownload}
+                    disabled={isDownloading}
+                    className={`z-10 shrink-0 w-full md:w-auto px-6 py-3.5 bg-indigo-500 text-white font-medium rounded-xl transition-all shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)] flex items-center justify-center gap-2.5 group ${isDownloading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-600 active:bg-indigo-700 hover:shadow-[0_0_25px_-5px_rgba(99,102,241,0.6)]'}`}
+                  >
+                    {showLoader ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                    )}
+                    {showLoader ? 'Generating PDF...' : 'Download Report (.pdf)'}
+                  </button>
+                </div>
+              </div>
+            )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

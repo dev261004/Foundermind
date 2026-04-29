@@ -818,22 +818,19 @@ export async function downloadSWOTPDF(
   ideaName: string,
   onSuccess?: () => void,
 ): Promise<void> {
-  const element = document.getElementById(elementId);
-  if (!element) {
+  const originalElement = document.getElementById(elementId);
+  if (!originalElement) {
     console.error(`[SWOTPDFTemplate] Element with id "${elementId}" not found.`);
     return;
   }
 
-  // Temporarily make the element visible for capture
-  const prevPosition = element.style.position;
-  const prevLeft = element.style.left;
-  const prevZIndex = element.style.zIndex;
-  const prevPointerEvents = element.style.pointerEvents;
-
-  element.style.position = "absolute";
-  element.style.left = "0";
-  element.style.zIndex = "-1";
-  element.style.pointerEvents = "none";
+  // Extract the inner HTML string and wrap it in a clean container.
+  // We cannot use outerHTML because the original element has `left: -9999px` 
+  // and `position: fixed` inline styles. If we pass those to html2pdf, it will
+  // render the element off-screen inside its internal iframe, resulting in a blank PDF!
+  const htmlString = `<div style="background-color: #ffffff; width: 210mm; margin: 0 auto;">
+    ${originalElement.innerHTML}
+  </div>`;
 
   const dateSlug = new Date().toISOString().slice(0, 10);
   const slugName = ideaName
@@ -856,6 +853,8 @@ export async function downloadSWOTPDF(
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
+          scrollY: 0,
+          windowY: 0,
         },
         jsPDF: {
           unit: "mm",
@@ -864,17 +863,11 @@ export async function downloadSWOTPDF(
         },
         pagebreak: { mode: ["css", "legacy"], avoid: ["div"] },
       } as Record<string, unknown>)
-      .from(element)
+      .from(htmlString)
       .save();
 
     onSuccess?.();
   } catch (err) {
     console.error("[SWOTPDFTemplate] PDF generation failed:", err);
-  } finally {
-    // Restore hidden state
-    element.style.position = prevPosition;
-    element.style.left = prevLeft;
-    element.style.zIndex = prevZIndex;
-    element.style.pointerEvents = prevPointerEvents;
   }
 }
