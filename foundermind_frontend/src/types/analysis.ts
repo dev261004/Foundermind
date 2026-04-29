@@ -32,6 +32,60 @@ export interface MonetizationStrategyItem {
   revenue_potential: number
 }
 
+export type CompetitiveStance =
+  | "Vulnerable Position"
+  | "At Risk"
+  | "Defensible Position"
+  | "Strong Position"
+
+export interface SWOTExplore {
+  deep_dive: string
+  strategic_imperatives: string[]
+}
+
+export interface SWOTStrengthItem {
+  term: string
+  detail: string
+  explore: SWOTExplore
+}
+
+export interface SWOTWeaknessItem {
+  term: string
+  detail: string
+  severity: 1 | 2 | 3
+  explore: SWOTExplore
+}
+
+export interface SWOTOpportunityItem {
+  term: string
+  detail: string
+  potential: 1 | 2 | 3
+  explore: SWOTExplore
+}
+
+export interface SWOTThreatItem {
+  term: string
+  detail: string
+  severity: 1 | 2 | 3
+  explore: SWOTExplore
+}
+
+export interface SWOTAnalysis {
+  critical_insight: {
+    label: string
+    detail: string
+  }
+  competitive_position: {
+    stance: CompetitiveStance
+    description: string
+    score: number     // 0-100
+  }
+  strengths: SWOTStrengthItem[]
+  weaknesses: SWOTWeaknessItem[]
+  opportunities: SWOTOpportunityItem[]
+  threats: SWOTThreatItem[]
+}
+
 export interface AgentAnalysisResults {
   similar_startups?: string
   market_data?: string
@@ -41,7 +95,7 @@ export interface AgentAnalysisResults {
   monetization?: MonetizationStrategyItem[] | string | null
   customer_profile?: string
   tech_stack?: string
-  swot?: string
+  swot?: SWOTAnalysis | string | null
 }
 
 export interface AgentCritique {

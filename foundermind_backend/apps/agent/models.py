@@ -39,7 +39,7 @@ class IdeaAnalysis(me.Document):
     monetization = me.ListField(me.DictField(), default=list)
     customer_profile = me.StringField()
     tech_stack = me.StringField()
-    swot = me.StringField()
+    swot = me.DictField(default=dict)
     report_summary = me.StringField()
 
     created_at = me.DateTimeField(default=datetime.datetime.utcnow)

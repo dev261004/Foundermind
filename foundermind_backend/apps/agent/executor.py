@@ -172,6 +172,24 @@ class ToolExecutor:
                             monetization_for_swot,
                             results.get("customer_profile", ""),
                         )
+                        # Store dict directly in results, serialize for log
+                        self._append_result(results, tool_name, output)
+                        import json as _json_swot
+                        update_started_entry(tool_name, {
+                            "status": "success",
+                            "result": _json_swot.dumps(output) if isinstance(output, dict) else str(output),
+                            "message": f"{tool_name} completed.",
+                            "completed_at": self._timestamp(),
+                        })
+                        if executed_tool and index < len(steps) - 1:
+                            append_log({
+                                "type": "inter_tool_delay",
+                                "after_tool": tool_name,
+                                "delay_seconds": self.INTER_TOOL_GAP_SECONDS,
+                                "timestamp": self._timestamp(),
+                            })
+                            time.sleep(self.INTER_TOOL_GAP_SECONDS)
+                        continue
                     else:
                         raise ValueError("Unknown tool")
 
