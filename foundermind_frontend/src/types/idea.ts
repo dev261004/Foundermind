@@ -1,4 +1,4 @@
-import type { SimilarStartup } from "@/types/analysis"
+import type { CustomerProfile, SimilarStartup } from "@/types/analysis"
 
 // /types/idea.ts
 
@@ -22,7 +22,7 @@ export interface IdeaResults {
   market_quantitative_model: MarketQuantitativeModel
   funding_info: string
   monetization: string
-  customer_profile: string
+  customer_profile: CustomerProfile | string | null
   tech_stack: string
   swot: string
 }

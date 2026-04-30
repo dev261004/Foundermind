@@ -89,7 +89,7 @@ def _upsert_analysis_snapshot(agent_run: AgentRun, results: dict, report_summary
     analysis.similar_startups = results.get("similar_startups") or []
     analysis.market_data = results.get("market_data")
     analysis.market_quantitative_model = results.get("market_quantitative_model")
-    analysis.funding_info = results.get("funding_info")
+    analysis.funding_info = results.get("funding_info") or []
     analysis.monetization = results.get("monetization") or []
     analysis.customer_profile = results.get("customer_profile")
     analysis.tech_stack = results.get("tech_stack")

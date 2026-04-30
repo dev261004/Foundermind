@@ -42,12 +42,73 @@ export interface SimilarStartup {
   icon_type: SimilarStartupIconType
 }
 
+export type FundingStage =
+  | "Pre-Seed"
+  | "Seed"
+  | "Series A"
+  | "Series B"
+  | "Series C"
+  | "Series D+"
+  | "Grant"
+  | "Undisclosed"
+
+export interface FundingSignal {
+  company_name: string
+  funding_amount: string
+  funding_stage: FundingStage
+  description: string
+  investors: string[]
+  relevance_score: number
+  url: string
+}
+
 export interface MonetizationStrategyItem {
   strategy_name: string
   type: MonetizationType
   description: string
   fit_score: MonetizationFitScore
   revenue_potential: number
+}
+
+export interface CustomerProfileNeed {
+  text: string
+  icon_emoji: string
+}
+
+export interface CustomerProfilePainPoint {
+  text: string
+  severity: 1 | 2 | 3
+}
+
+export interface CustomerProfileBehavior {
+  label: string
+  icon_emoji: string
+}
+
+export interface CustomerProfileValueProp {
+  text: string
+  icon_emoji: string
+}
+
+export interface CustomerProfileDemographics {
+  annual_income: string
+  locations: string
+  education: string
+}
+
+export interface CustomerProfile {
+  persona_name: string
+  age_range: string
+  profession: string
+  buying_behavior_tags: string[]
+  quote: string
+  demographics: CustomerProfileDemographics
+  brand_affinities: string[]
+  persona_strength: number
+  needs: CustomerProfileNeed[]
+  pain_points: CustomerProfilePainPoint[]
+  buying_behavior: CustomerProfileBehavior[]
+  value_proposition: CustomerProfileValueProp[]
 }
 
 export type CompetitiveStance =
@@ -109,9 +170,9 @@ export interface AgentAnalysisResults {
   market_data?: string
   market_quantitative_model?: MarketQuantitativeModel | null
   market_data_structured?: MarketDataStructured | null
-  funding_info?: string
+  funding_info?: FundingSignal[] | string | null
   monetization?: MonetizationStrategyItem[] | string | null
-  customer_profile?: string
+  customer_profile?: CustomerProfile | string | null
   tech_stack?: string
   swot?: SWOTAnalysis | string | null
 }

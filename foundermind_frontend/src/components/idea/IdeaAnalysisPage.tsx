@@ -6,31 +6,22 @@ import Link from "next/link";
 import {
   Activity,
   ArrowRight,
-  BarChart3,
   Banknote,
   BrainCircuit,
-  Building2,
   ChevronDown,
-  Circle,
   CircleAlert,
-  Code2,
-  ExternalLink,
-  Globe,
   Layers3,
-  Newspaper,
   RefreshCw,
-  Shield,
   Sparkles,
-  Zap,
 } from "lucide-react";
 import { useRunStore } from "@/store/useRunStore";
 import { useIdeaStore } from "@/store/useIdeaStore";
 import {
   AgentAnalysisResponse,
   AgentExecutionLogEntry,
+  FundingSignal,
   MonetizationStrategyItem,
   SimilarStartup,
-  SimilarStartupIconType,
 } from "@/types/analysis";
 import { MarketData, MarketDataHeader } from "@/components/results/MarketData";
 import { MarketDataEmpty } from "@/components/results/MarketData/MarketDataEmpty";
@@ -40,23 +31,16 @@ import { StrategicSWOT } from "@/components/results/StrategicSWOT";
 import { SWOTEmpty } from "@/components/results/StrategicSWOT/SWOTEmpty";
 import { ComparableStartups } from "@/components/results/ComparableStartups";
 import { ComparableStartupsEmpty } from "@/components/results/ComparableStartups/ComparableStartupsEmpty";
+import { FundingLandscape } from "@/components/results/FundingLandscape";
+import { FundingLandscapeEmpty } from "@/components/results/FundingLandscape/FundingLandscapeEmpty";
+import { CustomerProfile as CustomerProfileSection } from "@/components/results/CustomerProfile";
+import { CustomerProfileEmpty } from "@/components/results/CustomerProfile/CustomerProfileEmpty";
 import type { SWOTAnalysis } from "@/types/analysis";
+import type { CustomerProfile as CustomerProfileData } from "@/types/analysis";
 import styles from "./IdeaAnalysisPage.module.css";
 
 interface Props {
   ideaId: string;
-}
-
-type ResearchSectionKey = "similar_startups" | "funding_info";
-
-interface ResearchFeedItem {
-  id: string;
-  label: string;
-  title: string;
-  summary: string;
-  sourceLabel?: string;
-  domain?: string;
-  url?: string;
 }
 
 const SECTION_CONFIG: Array<{
@@ -119,17 +103,6 @@ const LOADING_STAGES = [
   "Critic scoring quality",
   "Final synthesis",
 ];
-
-const SIMILAR_STARTUP_ICON_MAP: Record<SimilarStartupIconType, typeof Shield> = {
-  shield: Shield,
-  newspaper: Newspaper,
-  building: Building2,
-  circle: Circle,
-  globe: Globe,
-  code: Code2,
-  chart: BarChart3,
-  bolt: Zap,
-};
 
 export default function IdeaAnalysisPage({ ideaId }: Props) {
   const startAnalysis = useRunStore((state) => state.startAnalysis);
@@ -250,9 +223,20 @@ function AnalysisContent({
     ? SECTION_CONFIG
     : SECTION_CONFIG.filter(({ key }) => {
         const value = result.results[key];
-        if (key === "similar_startups" || key === "market_data" || key === "monetization" || key === "swot") {
+        if (
+          key === "similar_startups" ||
+          key === "market_data" ||
+          key === "funding_info" ||
+          key === "monetization" ||
+          key === "swot"||
+          key === "customer_profile" 
+        
+        ) {
           return true; // Always render these sections as they have dedicated empty states
         }
+        // if (key === "customer_profile") {
+        //   return isCustomerProfileData(value);
+        // }
         return typeof value === "string" && value.trim().length > 0;
       });
 
@@ -358,6 +342,40 @@ function AnalysisContent({
           );
         }
 
+        if (key === "funding_info") {
+          const signals = isFundingSignalList(rawValue) ? rawValue : [];
+
+          if (signals.length > 0) {
+            return (
+              <DrawerSection
+                key={key}
+                title={title}
+                subtitle={subtitle}
+                pill={pill}
+                defaultOpen
+              >
+                <FundingLandscape signals={signals} />
+              </DrawerSection>
+            );
+          }
+
+          if (Array.isArray(rawValue) || showIncompleteSections) {
+            return (
+              <DrawerSection
+                key={key}
+                title={title}
+                subtitle={subtitle}
+                pill={pill}
+                defaultOpen
+              >
+                <FundingLandscapeEmpty />
+              </DrawerSection>
+            );
+          }
+
+          return null;
+        }
+
         if (key === "monetization") {
           const rawMonetization = result.results.monetization;
           const strategies: MonetizationStrategyItem[] = Array.isArray(
@@ -426,12 +444,31 @@ function AnalysisContent({
           );
         }
 
-        let isContentUnavailable = !hasContent;
-        if (key === "funding_info") {
-          if (!rawString || rawString === "No funding info found.") {
-            isContentUnavailable = true;
+        if (key === "customer_profile") {
+          const profile = isCustomerProfileData(rawValue) ? rawValue : null;
+
+          if (!profile && !showIncompleteSections) {
+            return null;
           }
+
+          return (
+            <DrawerSection
+              key={key}
+              title={title}
+              subtitle={subtitle}
+              pill={pill}
+              defaultOpen
+            >
+              {profile ? (
+                <CustomerProfileSection profile={profile} />
+              ) : (
+                <CustomerProfileEmpty />
+              )}
+            </DrawerSection>
+          );
         }
+
+        const isContentUnavailable = !hasContent;
 
         if (isContentUnavailable && !showIncompleteSections) {
           return null;
@@ -447,15 +484,8 @@ function AnalysisContent({
           >
             {isContentUnavailable ? (
               <UnavailableSection sectionTitle={title} />
-            ) : key === "funding_info" ? (
-              <ResearchFeedSection
-                sectionKey={key}
-                text={String(result.results[key] ?? "")}
-              />
             ) : (
-              <SectionRenderer
-                text={String(result.results[key] ?? "")}
-              />
+              <SectionRenderer text={String(result.results[key] ?? "")} />
             )}
           </DrawerSection>
         );
@@ -557,68 +587,6 @@ function SectionRenderer({
   return (
     <div className={styles.narrativePanel}>
       <ReactMarkdown>{text}</ReactMarkdown>
-    </div>
-  );
-}
-
-function ResearchFeedSection({
-  sectionKey,
-  text,
-}: {
-  sectionKey: ResearchSectionKey;
-  text: string;
-}) {
-  const items = parseResearchFeed(sectionKey, text);
-
-  if (items.length === 0) {
-    return (
-      <div className={styles.narrativePanel}>
-        <ReactMarkdown>{text}</ReactMarkdown>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.researchFeed}>
-      {items.map((item, index) => (
-        <article key={item.id} className={styles.researchRow}>
-          <div className={styles.researchIndex}>
-            <span className={styles.researchIndexNumber}>
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <span className={styles.researchBadge}>{item.label}</span>
-          </div>
-
-          <div className={styles.researchMain}>
-            <div className={styles.researchHeader}>
-              <div className={styles.researchTitleWrap}>
-                <h3 className={styles.researchTitle}>{item.title}</h3>
-                {item.sourceLabel && (
-                  <span className={styles.researchSource}>
-                    {item.sourceLabel}
-                  </span>
-                )}
-              </div>
-
-              {item.url && (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={styles.researchLink}
-                >
-                  Open source
-                  <ExternalLink size={14} />
-                </a>
-              )}
-            </div>
-
-            {item.summary && (
-              <p className={styles.researchSummary}>{item.summary}</p>
-            )}
-          </div>
-        </article>
-      ))}
     </div>
   );
 }
@@ -814,16 +782,34 @@ function getTimelineDescription(entry: AgentExecutionLogEntry) {
   return "Agent event recorded.";
 }
 
-function splitBlocks(text: string) {
-  return text
-    .split(/\n\s*\n/)
-    .map((block) => block.trim())
-    .filter(Boolean);
+function isFundingSignalList(value: unknown): value is FundingSignal[] {
+  return Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const candidate = item as Partial<FundingSignal>;
+    return (
+      typeof candidate.company_name === "string" &&
+      typeof candidate.funding_amount === "string" &&
+      typeof candidate.funding_stage === "string" &&
+      typeof candidate.description === "string" &&
+      Array.isArray(candidate.investors) &&
+      typeof candidate.relevance_score === "number" &&
+      typeof candidate.url === "string"
+    );
+  });
 }
 
-
-function cleanListPrefix(line: string) {
-  return line.replace(/^([-*]|\d+\.)\s+/, "").trim();
+function isCustomerProfileData(value: unknown): value is CustomerProfileData {
+  const candidate = value as Partial<CustomerProfileData> | null;
+  return (
+    candidate != null &&
+    typeof candidate === "object" &&
+    !Array.isArray(candidate) &&
+    typeof candidate.persona_name === "string" &&
+    candidate.persona_name.trim().length > 0
+  );
 }
 
 function formatScore(value: number, asPercent = false) {
@@ -856,221 +842,4 @@ function formatRunStatus(value?: string | null) {
   }
 
   return humanizeKey(value);
-}
-
-function parseResearchFeed(sectionKey: ResearchSectionKey, text: string) {
-  const blocks = splitBlocks(text);
-  const items = blocks
-    .map((block, index) => parseResearchBlock(sectionKey, block, index))
-    .filter((item): item is ResearchFeedItem => item !== null);
-
-  const deduped = new Map<string, ResearchFeedItem>();
-
-  for (const item of items) {
-    const key = item.url || item.domain || `${item.title}::${item.summary}`;
-    if (!deduped.has(key)) {
-      deduped.set(key, item);
-    }
-  }
-
-  return Array.from(deduped.values()).slice(0, 5);
-}
-
-function parseResearchBlock(
-  sectionKey: ResearchSectionKey,
-  block: string,
-  index: number,
-): ResearchFeedItem | null {
-  const normalizedBlock = block.replace(/\r/g, "").trim();
-  if (!normalizedBlock) {
-    return null;
-  }
-
-  const lines = normalizedBlock
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map(cleanListPrefix);
-
-  const url = extractFirstUrl(normalizedBlock);
-  const nonUrlLines = lines.filter((line) => !looksLikeRawUrl(line));
-
-  const headingMatch = normalizedBlock.match(
-    /^\*{0,2}([^:\n]{3,100})\*{0,2}:\s*(.+)$/m,
-  );
-  let title = headingMatch?.[1]?.trim() || "";
-  let summary = headingMatch?.[2]?.trim() || "";
-
-  if (isLowSignalResearchText(title)) {
-    title = "";
-  }
-
-  if (isLowSignalResearchText(summary)) {
-    summary = "";
-  }
-
-  if (!title) {
-    title = chooseResearchTitle(sectionKey, nonUrlLines);
-  }
-
-  if (!summary) {
-    summary = chooseResearchSummary(nonUrlLines, title);
-  }
-
-  if (isLowSignalResearchText(title)) {
-    title = "";
-  }
-
-  const sourceLabel = inferSourceLabel(nonUrlLines, title, summary);
-  const domain = extractDomain(url);
-  const label = domain || `source ${String(index + 1).padStart(2, "0")}`;
-
-  if (!title && !summary && !url) {
-    return null;
-  }
-
-  return {
-    id: `${sectionKey}-${index}-${title || domain || "item"}`,
-    label,
-    title:
-      title ||
-      sourceLabel ||
-      domain ||
-      `${sectionKey === "similar_startups" ? "Comparable startup" : "Funding signal"} ${index + 1}`,
-    summary,
-    sourceLabel,
-    domain,
-    url,
-  };
-}
-
-function chooseResearchTitle(sectionKey: ResearchSectionKey, lines: string[]) {
-  if (lines.length === 0) {
-    return "";
-  }
-
-  const firstDescriptiveLine =
-    lines.find((line) => {
-      const cleaned = line.replace(/\*\*/g, "").trim();
-      return cleaned.length > 6 && !isLowSignalResearchText(cleaned);
-    }) || "";
-
-  const pipeSplit = firstDescriptiveLine
-    .split("|")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (pipeSplit.length >= 2) {
-    return isLowSignalResearchText(pipeSplit[0])
-      ? (pipeSplit[1] ?? "")
-      : pipeSplit[0];
-  }
-
-  const sentence =
-    firstDescriptiveLine.replace(/\*\*/g, "").split(/[.!?]/)[0]?.trim() || "";
-  if (
-    sentence.length > 0 &&
-    sentence.length <= 90 &&
-    !isLowSignalResearchText(sentence)
-  ) {
-    return sentence;
-  }
-
-  return sectionKey === "similar_startups"
-    ? "Comparable company signal"
-    : "Funding activity signal";
-}
-
-function chooseResearchSummary(lines: string[], title: string) {
-  const cleanedLines = lines
-    .map((line) => line.replace(/\*\*/g, "").trim())
-    .filter(Boolean)
-    .filter((line) => line !== title)
-    .filter((line) => !isLowSignalResearchText(line));
-
-  if (cleanedLines.length === 0) {
-    return "";
-  }
-
-  const joined = cleanedLines.join(" ");
-  const singleLine = joined.replace(/\s+/g, " ").trim();
-  return singleLine.length > 110
-    ? `${singleLine.slice(0, 107).trim()}...`
-    : singleLine;
-}
-
-function inferSourceLabel(lines: string[], title: string, summary: string) {
-  const candidates = [title, ...lines, summary]
-    .map((value) => value.replace(/\*\*/g, "").trim())
-    .filter(Boolean)
-    .filter((value) => !isLowSignalResearchText(value));
-
-  const sourceCandidate = candidates.find((value) => value.includes("|"));
-  if (sourceCandidate) {
-    return sourceCandidate;
-  }
-
-  return candidates.find((value) => value.length <= 80 && /[A-Z]/.test(value));
-}
-
-function extractFirstUrl(text: string) {
-  const match = text.match(/(?:https?:\/\/|\/\/|www\.)[^\s)]+/i);
-  if (!match) {
-    return undefined;
-  }
-
-  const raw = match[0].replace(/[),.;]+$/, "");
-  if (raw.startsWith("//")) {
-    return `https:${raw}`;
-  }
-
-  if (raw.startsWith("www.")) {
-    return `https://${raw}`;
-  }
-
-  return raw;
-}
-
-function extractDomain(url?: string) {
-  if (!url) {
-    return undefined;
-  }
-
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname.replace(/^www\./, "");
-  } catch {
-    return undefined;
-  }
-}
-
-function looksLikeRawUrl(line: string) {
-  return /^(?:https?:\/\/|\/\/|www\.)/i.test(line.trim());
-}
-
-function isLowSignalResearchText(value?: string) {
-  if (!value) {
-    return true;
-  }
-
-  const normalized = value
-    .replace(/\*\*/g, "")
-    .replace(/^[\-:|]+|[\-:|]+$/g, "")
-    .trim()
-    .toLowerCase();
-
-  if (!normalized) {
-    return true;
-  }
-
-  return [
-    "companies to watch",
-    "company to watch",
-    "https",
-    "http",
-    "https:",
-    "http:",
-    "home",
-    "website",
-    "source",
-  ].includes(normalized);
 }

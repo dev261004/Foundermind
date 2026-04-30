@@ -8,7 +8,13 @@ from apps.agent.executor import ToolExecutor
 class StartupAnalysisService:
     RESULT_AVAILABLE_STATUSES = {"completed", "partial", "quota_exhausted"}
     RESUMABLE_STATUSES = {"partial", "quota_exhausted", "failed"}
-    STRUCTURED_RESULT_KEYS = {"similar_startups", "monetization", "swot"}
+    STRUCTURED_RESULT_KEYS = {
+        "similar_startups",
+        "funding_info",
+        "monetization",
+        "customer_profile",
+        "swot",
+    }
 
     @staticmethod
     def _get_analysis_for_run(agent_run):
@@ -59,6 +65,13 @@ class StartupAnalysisService:
         return [item for item in parsed if isinstance(item, dict)]
 
     @staticmethod
+    def _normalize_funding_info(value):
+        parsed = StartupAnalysisService._deserialize_result("funding_info", value)
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, dict)][:5]
+        return parsed
+
+    @staticmethod
     def build_resume_execution_log(source_run):
         resumable_entries = []
         for entry in source_run.execution_log or []:
@@ -101,7 +114,9 @@ class StartupAnalysisService:
             ),
             "market_data": getattr(analysis, "market_data", fallback_results.get("market_data")),
             "market_quantitative_model": getattr(analysis, "market_quantitative_model", fallback_results.get("market_quantitative_model")),
-            "funding_info": getattr(analysis, "funding_info", fallback_results.get("funding_info")),
+            "funding_info": StartupAnalysisService._normalize_funding_info(
+                getattr(analysis, "funding_info", fallback_results.get("funding_info"))
+            ),
             "monetization": StartupAnalysisService._deserialize_result(
                 "monetization",
                 getattr(analysis, "monetization", fallback_results.get("monetization")),

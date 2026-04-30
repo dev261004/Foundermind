@@ -27,7 +27,13 @@ class ToolExecutor:
         "suggest_tech_stack": "tech_stack",
         "generate_swot_analysis": "swot",
     }
-    STRUCTURED_RESULT_KEYS = {"similar_startups", "monetization", "swot"}
+    STRUCTURED_RESULT_KEYS = {
+        "similar_startups",
+        "funding_info",
+        "monetization",
+        "customer_profile",
+        "swot",
+    }
 
     def _timestamp(self) -> str:
         return datetime.datetime.utcnow().isoformat()
