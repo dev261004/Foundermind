@@ -111,6 +111,29 @@ export interface CustomerProfile {
   value_proposition: CustomerProfileValueProp[]
 }
 
+export type TechConfidence = "Essential" | "Recommended" | "Optional"
+
+export interface TechItem {
+  id: string
+  name: string
+  emoji: string
+  description: string
+  reasoning: string
+  confidence: TechConfidence
+  alternatives: string[]
+}
+
+export interface TechCategory {
+  id: string
+  name: string
+  gradient: string
+  items: TechItem[]
+}
+
+export interface TechStack {
+  categories: TechCategory[]
+}
+
 export type CompetitiveStance =
   | "Vulnerable Position"
   | "At Risk"
@@ -173,7 +196,7 @@ export interface AgentAnalysisResults {
   funding_info?: FundingSignal[] | string | null
   monetization?: MonetizationStrategyItem[] | string | null
   customer_profile?: CustomerProfile | string | null
-  tech_stack?: string
+  tech_stack?: TechStack | string | null
   swot?: SWOTAnalysis | string | null
 }
 

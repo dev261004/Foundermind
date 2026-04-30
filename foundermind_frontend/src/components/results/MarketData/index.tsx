@@ -214,9 +214,9 @@ export function MarketDataHeader() {
         </motion.p>
       </div>
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 px-4 py-2 rounded-xl text-sm font-semibold transition-all">
-          <Layers size={16} />
-          Market
+        <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-indigo-500/15 text-indigo-400 rounded-xl border border-indigo-500/25 min-w-[140px] justify-center">
+          <TrendingUp size={14} />
+          <span>Market</span>
         </div>
         <span className="inline-flex items-center justify-center w-[38px] h-[38px] rounded-xl bg-white/5 text-[#cbd5e5] transition-transform duration-[240ms] group-open:rotate-180 flex-shrink-0">
           <ChevronDown size={18} />

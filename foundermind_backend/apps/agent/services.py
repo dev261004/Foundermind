@@ -13,6 +13,7 @@ class StartupAnalysisService:
         "funding_info",
         "monetization",
         "customer_profile",
+        "tech_stack",
         "swot",
     }
 
@@ -122,7 +123,10 @@ class StartupAnalysisService:
                 getattr(analysis, "monetization", fallback_results.get("monetization")),
             ),
             "customer_profile": getattr(analysis, "customer_profile", fallback_results.get("customer_profile")),
-            "tech_stack": getattr(analysis, "tech_stack", fallback_results.get("tech_stack")),
+            "tech_stack": StartupAnalysisService._deserialize_result(
+                "tech_stack",
+                getattr(analysis, "tech_stack", fallback_results.get("tech_stack")),
+            ),
             "swot": StartupAnalysisService._deserialize_result(
                 "swot",
                 getattr(analysis, "swot", fallback_results.get("swot")),

@@ -13,6 +13,12 @@ import {
   Layers3,
   RefreshCw,
   Sparkles,
+  Search,
+  TrendingUp,
+  Wallet,
+  Users,
+  Cpu,
+  Zap,
 } from "lucide-react";
 import { useRunStore } from "@/store/useRunStore";
 import { useIdeaStore } from "@/store/useIdeaStore";
@@ -35,8 +41,11 @@ import { FundingLandscape } from "@/components/results/FundingLandscape";
 import { FundingLandscapeEmpty } from "@/components/results/FundingLandscape/FundingLandscapeEmpty";
 import { CustomerProfile as CustomerProfileSection } from "@/components/results/CustomerProfile";
 import { CustomerProfileEmpty } from "@/components/results/CustomerProfile/CustomerProfileEmpty";
+import { TechStack as TechStackSection } from "@/components/results/TechStack";
+import { TechStackEmpty } from "@/components/results/TechStack/TechStackEmpty";
 import type { SWOTAnalysis } from "@/types/analysis";
 import type { CustomerProfile as CustomerProfileData } from "@/types/analysis";
+import type { TechStack as TechStackData } from "@/types/analysis";
 import styles from "./IdeaAnalysisPage.module.css";
 
 interface Props {
@@ -48,6 +57,7 @@ const SECTION_CONFIG: Array<{
   title: string;
   subtitle: string;
   pill: string;
+  icon: any;
 }> = [
   {
     key: "similar_startups",
@@ -55,18 +65,21 @@ const SECTION_CONFIG: Array<{
     subtitle:
       "What adjacent companies suggest about positioning and competition.",
     pill: "Research",
+    icon: Search,
   },
   {
     key: "market_data",
     title: "Market Data",
     subtitle: "Evidence on TAM, growth, demand signals, and category size.",
     pill: "Market",
+    icon: TrendingUp,
   },
   {
     key: "funding_info",
     title: "Funding Landscape",
     subtitle: "Recent capital patterns and investor appetite around the space.",
     pill: "Funding",
+    icon: Wallet,
   },
   {
     key: "monetization",
@@ -74,12 +87,14 @@ const SECTION_CONFIG: Array<{
     subtitle:
       "Likely revenue paths the agent considers strongest for this idea.",
     pill: "Revenue",
+    icon: Banknote,
   },
   {
     key: "customer_profile",
     title: "Customer Profile",
     subtitle: "Who the product should target first and why they will care.",
     pill: "Customer",
+    icon: Users,
   },
   {
     key: "tech_stack",
@@ -87,6 +102,7 @@ const SECTION_CONFIG: Array<{
     subtitle:
       "Technical direction if the product has meaningful software depth.",
     pill: "Tech",
+    icon: Cpu,
   },
   {
     key: "swot",
@@ -94,6 +110,7 @@ const SECTION_CONFIG: Array<{
     subtitle:
       "A concise strategic read across strengths, risks, openings, and threats.",
     pill: "Swot",
+    icon: Zap,
   },
 ];
 
@@ -228,15 +245,14 @@ function AnalysisContent({
           key === "market_data" ||
           key === "funding_info" ||
           key === "monetization" ||
-          key === "swot"||
-          key === "customer_profile" 
-        
+          key === "swot" ||
+          key === "customer_profile"
         ) {
           return true; // Always render these sections as they have dedicated empty states
         }
-        // if (key === "customer_profile") {
-        //   return isCustomerProfileData(value);
-        // }
+        if (key === "tech_stack") {
+          return isTechStackData(value);
+        }
         return typeof value === "string" && value.trim().length > 0;
       });
 
@@ -264,7 +280,7 @@ function AnalysisContent({
                 recover.
               </span>
             </div>
-            <span className={styles.pill}>
+            <span className="flex items-center justify-center gap-2 min-w-[140px] px-4 py-2 bg-indigo-500/15 text-indigo-400 rounded-xl border border-indigo-500/25 text-xs font-semibold">
               <Sparkles size={14} />
               Reporter
             </span>
@@ -275,7 +291,7 @@ function AnalysisContent({
         </section>
       )}
 
-      {sectionEntries.map(({ key, title, subtitle, pill }) => {
+      {sectionEntries.map(({ key, title, subtitle, pill, icon }) => {
         const rawValue = result.results[key];
         const rawString = typeof rawValue === "string" ? rawValue.trim() : "";
         const hasContent = rawString.length > 0;
@@ -290,6 +306,7 @@ function AnalysisContent({
                 title={title}
                 subtitle={subtitle}
                 pill={pill}
+              pillIcon={icon}
                 defaultOpen
               >
                 <ComparableStartupsEmpty />
@@ -303,6 +320,7 @@ function AnalysisContent({
               title={title}
               subtitle={subtitle}
               pill={pill}
+              pillIcon={icon}
               defaultOpen
             >
               {startups.length > 0 ? (
@@ -352,6 +370,7 @@ function AnalysisContent({
                 title={title}
                 subtitle={subtitle}
                 pill={pill}
+              pillIcon={icon}
                 defaultOpen
               >
                 <FundingLandscape signals={signals} />
@@ -366,6 +385,7 @@ function AnalysisContent({
                 title={title}
                 subtitle={subtitle}
                 pill={pill}
+              pillIcon={icon}
                 defaultOpen
               >
                 <FundingLandscapeEmpty />
@@ -390,8 +410,9 @@ function AnalysisContent({
               title={title}
               subtitle={subtitle}
               pill={pill}
+              pillIcon={icon}
               pillElement={
-                <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 bg-purple-900/30 text-purple-400 rounded border border-purple-800/50">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold px-4 py-2 bg-indigo-500/15 text-indigo-400 rounded-xl border border-indigo-500/25 min-w-[140px]">
                   <Banknote className="w-3.5 h-3.5" />
                   <span>Revenue</span>
                 </div>
@@ -427,6 +448,7 @@ function AnalysisContent({
                 title={title}
                 subtitle={subtitle}
                 pill={pill}
+              pillIcon={icon}
                 defaultOpen
               >
                 <SWOTEmpty />
@@ -457,12 +479,38 @@ function AnalysisContent({
               title={title}
               subtitle={subtitle}
               pill={pill}
+              pillIcon={icon}
               defaultOpen
             >
               {profile ? (
                 <CustomerProfileSection profile={profile} />
               ) : (
                 <CustomerProfileEmpty />
+              )}
+            </DrawerSection>
+          );
+        }
+
+        if (key === "tech_stack") {
+          const stack = isTechStackData(rawValue) ? rawValue : null;
+
+          if (!stack && !showIncompleteSections) {
+            return null;
+          }
+
+          return (
+            <DrawerSection
+              key={key}
+              title={title}
+              subtitle={subtitle}
+              pill={pill}
+              pillIcon={icon}
+              defaultOpen
+            >
+              {stack ? (
+                <TechStackSection stack={stack} />
+              ) : (
+                <TechStackEmpty />
               )}
             </DrawerSection>
           );
@@ -480,6 +528,7 @@ function AnalysisContent({
             title={title}
             subtitle={subtitle}
             pill={pill}
+            pillIcon={icon}
             defaultOpen
           >
             {isContentUnavailable ? (
@@ -534,6 +583,7 @@ function DrawerSection({
   title,
   subtitle,
   pill,
+  pillIcon: PillIcon = Layers3,
   pillElement,
   defaultOpen,
   countLabel,
@@ -542,6 +592,7 @@ function DrawerSection({
   title: string;
   subtitle: string;
   pill: string;
+  pillIcon?: any;
   pillElement?: ReactNode;
   defaultOpen?: boolean;
   countLabel?: string;
@@ -563,7 +614,7 @@ function DrawerSection({
           <div className="flex items-center gap-3">
             {pillElement ?? (
               <span className={styles.statusPill}>
-                <Layers3 size={14} />
+                <PillIcon size={14} />
                 {pill}
               </span>
             )}
@@ -809,6 +860,24 @@ function isCustomerProfileData(value: unknown): value is CustomerProfileData {
     !Array.isArray(candidate) &&
     typeof candidate.persona_name === "string" &&
     candidate.persona_name.trim().length > 0
+  );
+}
+
+function isTechStackData(value: unknown): value is TechStackData {
+  const candidate = value as Partial<TechStackData> | null;
+  return (
+    candidate != null &&
+    typeof candidate === "object" &&
+    !Array.isArray(candidate) &&
+    Array.isArray(candidate.categories) &&
+    candidate.categories.some((category) => {
+      if (!category || typeof category !== "object" || Array.isArray(category)) {
+        return false;
+      }
+
+      const typedCategory = category as Partial<TechStackData["categories"][number]>;
+      return Array.isArray(typedCategory.items) && typedCategory.items.length > 0;
+    })
   );
 }
 

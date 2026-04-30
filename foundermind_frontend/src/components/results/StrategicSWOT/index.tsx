@@ -370,14 +370,19 @@ export function StrategicSWOT({ swot, ideaName }: StrategicSWOTProps) {
         </div>
         
         <div className="flex items-center gap-3 shrink-0">
-          <button 
+          <div 
             onClick={(e) => { e.stopPropagation(); handleDownload(); }}
-            disabled={isDownloading}
-            className={`flex items-center gap-2 bg-indigo-500/10 text-indigo-400 px-4 py-2 rounded-lg font-medium text-sm transition-colors border border-indigo-500/20 ${isDownloading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-indigo-500/20'}`}
+            className={`flex items-center justify-center gap-2 min-w-[140px] px-4 py-2 rounded-xl border transition-all duration-200 cursor-pointer ${isDownloading ? 'bg-indigo-500/5 text-indigo-500/50 border-indigo-500/10 cursor-not-allowed' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/30'}`}
           >
-            {showLoader ? <Loader2 className="w-4 h-4 animate-spin" /> : <Layers className="w-4 h-4" />}
-            {showLoader ? 'Downloading...' : 'Download Report'}
-          </button>
+            {showLoader ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            <span className="text-xs font-semibold">Download Report</span>
+          </div>
+          
+          <div className="flex items-center justify-center gap-2 min-w-[140px] px-4 py-2 bg-indigo-500/15 text-indigo-400 rounded-xl border border-indigo-500/25">
+            <Zap className="w-3.5 h-3.5" />
+            <span className="text-xs font-semibold">Strategy</span>
+          </div>
+
           <span 
             className="inline-flex items-center justify-center w-[38px] h-[38px] rounded-xl transition-transform duration-200"
             style={{ 

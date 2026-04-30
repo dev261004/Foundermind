@@ -1,4 +1,4 @@
-import type { CustomerProfile, SimilarStartup } from "@/types/analysis"
+import type { CustomerProfile, SimilarStartup, TechStack } from "@/types/analysis"
 
 // /types/idea.ts
 
@@ -23,7 +23,7 @@ export interface IdeaResults {
   funding_info: string
   monetization: string
   customer_profile: CustomerProfile | string | null
-  tech_stack: string
+  tech_stack: TechStack | string | null
   swot: string
 }
 

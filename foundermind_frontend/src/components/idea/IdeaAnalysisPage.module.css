@@ -413,6 +413,27 @@
   width: 100%;
 }
 
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(79, 70, 229, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(79, 70, 229, 0.25);
+  transition: all 0.2s ease;
+  min-width: 140px;
+}
+
+.statusPill:hover {
+  background: rgba(79, 70, 229, 0.25);
+  border-color: rgba(79, 70, 229, 0.4);
+}
+
 .drawerToggle {
   display: inline-flex;
   align-items: center;
@@ -465,20 +486,15 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 11px;
-  border-radius: 999px;
-  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 .pill {
   background: rgba(6, 182, 212, 0.12);
   color: #93ecff;
-}
-
-.statusPill {
-  background: rgba(124, 58, 237, 0.14);
-  color: #dac5ff;
 }
 
 .rowStack {

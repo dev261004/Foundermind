@@ -32,6 +32,7 @@ class ToolExecutor:
         "funding_info",
         "monetization",
         "customer_profile",
+        "tech_stack",
         "swot",
     }
 
@@ -171,7 +172,7 @@ class ToolExecutor:
                         if is_technical_startup(idea):
                             output = suggest_tech_stack(idea)
                         else:
-                            output = "Not a technical startup."
+                            output = {}
 
                     elif tool_name == "generate_swot_analysis":
                         output = generate_swot_analysis(
