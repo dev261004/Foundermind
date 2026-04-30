@@ -24,6 +24,24 @@ export interface MarketQuantitativeModel {
 export type MonetizationFitScore = "High" | "Medium" | "Low"
 export type MonetizationType = "B2B" | "API" | "B2C" | "Institutional"
 
+export type SimilarStartupIconType =
+  | "shield"
+  | "newspaper"
+  | "building"
+  | "circle"
+  | "globe"
+  | "code"
+  | "chart"
+  | "bolt"
+
+export interface SimilarStartup {
+  company_name: string
+  category_tag: string
+  description: string
+  url: string
+  icon_type: SimilarStartupIconType
+}
+
 export interface MonetizationStrategyItem {
   strategy_name: string
   type: MonetizationType
@@ -87,7 +105,7 @@ export interface SWOTAnalysis {
 }
 
 export interface AgentAnalysisResults {
-  similar_startups?: string
+  similar_startups?: SimilarStartup[] | null
   market_data?: string
   market_quantitative_model?: MarketQuantitativeModel | null
   market_data_structured?: MarketDataStructured | null

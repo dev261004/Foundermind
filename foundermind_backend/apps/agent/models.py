@@ -32,7 +32,7 @@ class IdeaAnalysis(me.Document):
     idea_id = me.StringField(required=True)
     run_id = me.StringField()
 
-    similar_startups = me.StringField()
+    similar_startups = me.ListField(me.DictField(), default=list)
     market_data = me.StringField()
     market_quantitative_model = me.DictField()
     funding_info = me.StringField()

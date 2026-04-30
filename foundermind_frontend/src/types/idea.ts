@@ -1,3 +1,5 @@
+import type { SimilarStartup } from "@/types/analysis"
+
 // /types/idea.ts
 
 export type IdeaType = "tech" | "marketplace" | "deeptech" | "general"
@@ -15,7 +17,7 @@ export interface MarketQuantitativeModel {
 }
 
 export interface IdeaResults {
-  similar_startups: string
+  similar_startups: SimilarStartup[]
   market_data: string
   market_quantitative_model: MarketQuantitativeModel
   funding_info: string

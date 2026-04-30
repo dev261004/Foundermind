@@ -1,7 +1,8 @@
 import datetime
+import json
 import time
 
-from apps.agent.tools.search import search_similar_startups
+from apps.agent.tools.similar_startups import search_similar_startups
 from apps.agent.tools.market import search_market_data
 from apps.agent.tools.funding import search_funding_info
 from apps.agent.tools.monetization import generate_monetization_strategy
@@ -26,14 +27,31 @@ class ToolExecutor:
         "suggest_tech_stack": "tech_stack",
         "generate_swot_analysis": "swot",
     }
+    STRUCTURED_RESULT_KEYS = {"similar_startups", "monetization", "swot"}
 
     def _timestamp(self) -> str:
         return datetime.datetime.utcnow().isoformat()
 
-    def _append_result(self, results: dict, tool_name: str, output: str) -> None:
+    def _append_result(self, results: dict, tool_name: str, output) -> None:
         result_key = self.RESULT_KEY_MAP.get(tool_name)
         if result_key:
             results[result_key] = output
+
+    def _serialize_result(self, tool_name: str, output) -> str:
+        result_key = self.RESULT_KEY_MAP.get(tool_name)
+        if result_key in self.STRUCTURED_RESULT_KEYS:
+            return json.dumps(output, ensure_ascii=False)
+        return str(output)
+
+    def _deserialize_result(self, tool_name: str, output):
+        result_key = self.RESULT_KEY_MAP.get(tool_name)
+        if result_key not in self.STRUCTURED_RESULT_KEYS or not isinstance(output, str):
+            return output
+
+        try:
+            return json.loads(output)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return output
 
     def _restore_results(self, checkpoints: list[dict] | None) -> dict:
         restored = {}
@@ -45,7 +63,11 @@ class ToolExecutor:
                 continue
             if entry.get("result") is None:
                 continue
-            self._append_result(restored, tool_name, entry["result"])
+            self._append_result(
+                restored,
+                tool_name,
+                self._deserialize_result(tool_name, entry["result"]),
+            )
         return restored
 
     def _find_checkpoint(self, tool_name: str, checkpoints: list[dict] | None):
@@ -101,7 +123,11 @@ class ToolExecutor:
             )
 
             if checkpoint_entry:
-                self._append_result(results, tool_name, checkpoint_entry["result"])
+                checkpoint_result = self._deserialize_result(
+                    tool_name,
+                    checkpoint_entry["result"],
+                )
+                self._append_result(results, tool_name, checkpoint_result)
                 append_log({
                     "tool": tool_name,
                     "status": "skipped",
@@ -131,24 +157,6 @@ class ToolExecutor:
 
                     elif tool_name == "generate_monetization_strategy":
                         output = generate_monetization_strategy(idea)
-                        # Store list directly in results, serialize for log
-                        self._append_result(results, tool_name, output)
-                        import json as _json
-                        update_started_entry(tool_name, {
-                            "status": "success",
-                            "result": _json.dumps(output) if isinstance(output, list) else str(output),
-                            "message": f"{tool_name} completed.",
-                            "completed_at": self._timestamp(),
-                        })
-                        if executed_tool and index < len(steps) - 1:
-                            append_log({
-                                "type": "inter_tool_delay",
-                                "after_tool": tool_name,
-                                "delay_seconds": self.INTER_TOOL_GAP_SECONDS,
-                                "timestamp": self._timestamp(),
-                            })
-                            time.sleep(self.INTER_TOOL_GAP_SECONDS)
-                        continue
 
                     elif tool_name == "generate_customer_profile":
                         output = generate_customer_profile(idea)
@@ -160,44 +168,21 @@ class ToolExecutor:
                             output = "Not a technical startup."
 
                     elif tool_name == "generate_swot_analysis":
-                        monetization_for_swot = results.get("monetization", "")
-                        if isinstance(monetization_for_swot, list):
-                            import json as _json
-                            monetization_for_swot = _json.dumps(monetization_for_swot, indent=2)
                         output = generate_swot_analysis(
                             idea,
                             results.get("similar_startups", ""),
                             results.get("market_data", ""),
                             results.get("funding_info", ""),
-                            monetization_for_swot,
+                            results.get("monetization", ""),
                             results.get("customer_profile", ""),
                         )
-                        # Store dict directly in results, serialize for log
-                        self._append_result(results, tool_name, output)
-                        import json as _json_swot
-                        update_started_entry(tool_name, {
-                            "status": "success",
-                            "result": _json_swot.dumps(output) if isinstance(output, dict) else str(output),
-                            "message": f"{tool_name} completed.",
-                            "completed_at": self._timestamp(),
-                        })
-                        if executed_tool and index < len(steps) - 1:
-                            append_log({
-                                "type": "inter_tool_delay",
-                                "after_tool": tool_name,
-                                "delay_seconds": self.INTER_TOOL_GAP_SECONDS,
-                                "timestamp": self._timestamp(),
-                            })
-                            time.sleep(self.INTER_TOOL_GAP_SECONDS)
-                        continue
                     else:
                         raise ValueError("Unknown tool")
 
-                    output_text = str(output)
-                    self._append_result(results, tool_name, output_text)
+                    self._append_result(results, tool_name, output)
                     update_started_entry(tool_name, {
                         "status": "success",
-                        "result": output_text,
+                        "result": self._serialize_result(tool_name, output),
                         "model_used": getattr(output, "model_used", None),
                         "message": (
                             f"{tool_name} completed using "

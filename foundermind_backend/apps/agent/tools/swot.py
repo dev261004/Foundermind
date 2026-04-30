@@ -114,6 +114,21 @@ VALID_STANCES = {
 }
 
 
+def _stringify_context(value: object, max_length: int) -> str:
+    if value is None:
+        return ""
+
+    if isinstance(value, str):
+        text = value
+    else:
+        try:
+            text = json.dumps(value, ensure_ascii=False, indent=2)
+        except TypeError:
+            text = str(value)
+
+    return text[:max_length]
+
+
 def sanitize_item(item: dict, quadrant: str) -> dict:
     """Sanitize and validate a single SWOT item."""
     sanitized = {
@@ -205,19 +220,19 @@ def parse_swot_response(raw: str) -> dict:
 
 def generate_swot_analysis(
     idea: str,
-    similar_results: str,
-    market_data: str,
-    funding_info: str,
-    monetization: str,
-    customer_profile: str,
+    similar_results: object,
+    market_data: object,
+    funding_info: object,
+    monetization: object,
+    customer_profile: object,
 ) -> dict:
     prompt = SWOT_PROMPT.format(
         idea=idea,
-        similar_results=similar_results[:2000],
-        market_data=market_data[:2000],
-        funding_info=str(funding_info)[:1000],
-        monetization=str(monetization)[:1000],
-        customer_profile=customer_profile[:2000],
+        similar_results=_stringify_context(similar_results, 2000),
+        market_data=_stringify_context(market_data, 2000),
+        funding_info=_stringify_context(funding_info, 1000),
+        monetization=_stringify_context(monetization, 1000),
+        customer_profile=_stringify_context(customer_profile, 2000),
     )
     model = settings.AGENT_MODELS["tool_heavy"]
     fallback = settings.AGENT_MODELS["fallback_gemma"]

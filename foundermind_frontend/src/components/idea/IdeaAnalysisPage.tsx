@@ -6,14 +6,22 @@ import Link from "next/link";
 import {
   Activity,
   ArrowRight,
+  BarChart3,
   Banknote,
   BrainCircuit,
+  Building2,
   ChevronDown,
+  Circle,
   CircleAlert,
+  Code2,
   ExternalLink,
+  Globe,
   Layers3,
+  Newspaper,
   RefreshCw,
+  Shield,
   Sparkles,
+  Zap,
 } from "lucide-react";
 import { useRunStore } from "@/store/useRunStore";
 import { useIdeaStore } from "@/store/useIdeaStore";
@@ -21,6 +29,8 @@ import {
   AgentAnalysisResponse,
   AgentExecutionLogEntry,
   MonetizationStrategyItem,
+  SimilarStartup,
+  SimilarStartupIconType,
 } from "@/types/analysis";
 import { MarketData, MarketDataHeader } from "@/components/results/MarketData";
 import { MarketDataEmpty } from "@/components/results/MarketData/MarketDataEmpty";
@@ -28,6 +38,8 @@ import { MonetizationStrategy } from "@/components/results/MonetizationStrategy"
 import { MonetizationEmpty } from "@/components/results/MonetizationStrategy/MonetizationEmpty";
 import { StrategicSWOT } from "@/components/results/StrategicSWOT";
 import { SWOTEmpty } from "@/components/results/StrategicSWOT/SWOTEmpty";
+import { ComparableStartups } from "@/components/results/ComparableStartups";
+import { ComparableStartupsEmpty } from "@/components/results/ComparableStartups/ComparableStartupsEmpty";
 import type { SWOTAnalysis } from "@/types/analysis";
 import styles from "./IdeaAnalysisPage.module.css";
 
@@ -107,6 +119,17 @@ const LOADING_STAGES = [
   "Critic scoring quality",
   "Final synthesis",
 ];
+
+const SIMILAR_STARTUP_ICON_MAP: Record<SimilarStartupIconType, typeof Shield> = {
+  shield: Shield,
+  newspaper: Newspaper,
+  building: Building2,
+  circle: Circle,
+  globe: Globe,
+  code: Code2,
+  chart: BarChart3,
+  bolt: Zap,
+};
 
 export default function IdeaAnalysisPage({ ideaId }: Props) {
   const startAnalysis = useRunStore((state) => state.startAnalysis);
@@ -227,25 +250,8 @@ function AnalysisContent({
     ? SECTION_CONFIG
     : SECTION_CONFIG.filter(({ key }) => {
         const value = result.results[key];
-        if (key === "market_data") {
-          const hasText = typeof value === "string" && value.trim().length > 0;
-          const hasModel =
-            result.results.market_quantitative_model &&
-            Object.keys(result.results.market_quantitative_model).length > 0;
-          return hasText || hasModel;
-        }
-        if (key === "monetization") {
-          return Array.isArray(value)
-            ? value.length > 0
-            : typeof value === "string" && value.trim().length > 0;
-        }
-        if (key === "swot") {
-          return (
-            value != null &&
-            typeof value === "object" &&
-            !Array.isArray(value) &&
-            "strengths" in value
-          );
+        if (key === "similar_startups" || key === "market_data" || key === "monetization" || key === "swot") {
+          return true; // Always render these sections as they have dedicated empty states
         }
         return typeof value === "string" && value.trim().length > 0;
       });
@@ -289,6 +295,40 @@ function AnalysisContent({
         const rawValue = result.results[key];
         const rawString = typeof rawValue === "string" ? rawValue.trim() : "";
         const hasContent = rawString.length > 0;
+
+        if (key === "similar_startups") {
+          const startups: SimilarStartup[] = Array.isArray(rawValue) ? rawValue as SimilarStartup[] : [];
+          
+          if (!Array.isArray(rawValue)) {
+             return (
+              <DrawerSection
+                key={key}
+                title={title}
+                subtitle={subtitle}
+                pill={pill}
+                defaultOpen
+              >
+                <ComparableStartupsEmpty />
+              </DrawerSection>
+             );
+          }
+
+          return (
+            <DrawerSection
+              key={key}
+              title={title}
+              subtitle={subtitle}
+              pill={pill}
+              defaultOpen
+            >
+              {startups.length > 0 ? (
+                <ComparableStartups startups={startups} />
+              ) : (
+                <ComparableStartupsEmpty />
+              )}
+            </DrawerSection>
+          );
+        }
 
         if (key === "market_data") {
           const hasQuantModel = !!(
@@ -363,7 +403,6 @@ function AnalysisContent({
             "strengths" in rawSwot;
 
           if (!isStructured) {
-            if (!showIncompleteSections) return null;
             return (
               <DrawerSection
                 key={key}
@@ -408,26 +447,6 @@ function AnalysisContent({
           >
             {isContentUnavailable ? (
               <UnavailableSection sectionTitle={title} />
-            ) : key === "similar_startups" ? (
-              <div className={styles.narrativePanel}>
-                <ReactMarkdown
-                  components={{
-                    a: ({ node, ...props }) => (
-                      <a
-                        {...props}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={styles.researchLink}
-                      >
-                        View source
-                        <ExternalLink size={14} />
-                      </a>
-                    ),
-                  }}
-                >
-                  {String(result.results[key] ?? "")}
-                </ReactMarkdown>
-              </div>
             ) : key === "funding_info" ? (
               <ResearchFeedSection
                 sectionKey={key}
@@ -435,7 +454,6 @@ function AnalysisContent({
               />
             ) : (
               <SectionRenderer
-                sectionKey={key}
                 text={String(result.results[key] ?? "")}
               />
             )}
@@ -530,11 +548,10 @@ function DrawerSection({
   );
 }
 
+
 function SectionRenderer({
-  sectionKey,
   text,
 }: {
-  sectionKey: keyof AgentAnalysisResponse["results"];
   text: string;
 }) {
   return (
@@ -803,6 +820,7 @@ function splitBlocks(text: string) {
     .map((block) => block.trim())
     .filter(Boolean);
 }
+
 
 function cleanListPrefix(line: string) {
   return line.replace(/^([-*]|\d+\.)\s+/, "").trim();

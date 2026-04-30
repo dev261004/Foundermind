@@ -1,3 +1,5 @@
+import json
+
 from apps.agent.models import AgentRun, IdeaAnalysis
 from apps.ideas.models import Idea
 from apps.agent.executor import ToolExecutor
@@ -6,6 +8,7 @@ from apps.agent.executor import ToolExecutor
 class StartupAnalysisService:
     RESULT_AVAILABLE_STATUSES = {"completed", "partial", "quota_exhausted"}
     RESUMABLE_STATUSES = {"partial", "quota_exhausted", "failed"}
+    STRUCTURED_RESULT_KEYS = {"similar_startups", "monetization", "swot"}
 
     @staticmethod
     def _get_analysis_for_run(agent_run):
@@ -28,8 +31,32 @@ class StartupAnalysisService:
                 continue
             result_key = reverse_map.get(tool_name)
             if result_key:
-                results[result_key] = entry.get("result")
+                results[result_key] = StartupAnalysisService._deserialize_result(
+                    result_key,
+                    entry.get("result"),
+                )
         return results
+
+    @staticmethod
+    def _deserialize_result(result_key: str, value):
+        if value is None:
+            return None
+        if result_key not in StartupAnalysisService.STRUCTURED_RESULT_KEYS:
+            return value
+        if not isinstance(value, str):
+            return value
+
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return value
+
+    @staticmethod
+    def _normalize_similar_startups(value) -> list[dict]:
+        parsed = StartupAnalysisService._deserialize_result("similar_startups", value)
+        if not isinstance(parsed, list):
+            return []
+        return [item for item in parsed if isinstance(item, dict)]
 
     @staticmethod
     def build_resume_execution_log(source_run):
@@ -67,6 +94,27 @@ class StartupAnalysisService:
         )
 
     @staticmethod
+    def _build_response_results(analysis, fallback_results):
+        return {
+            "similar_startups": StartupAnalysisService._normalize_similar_startups(
+                getattr(analysis, "similar_startups", fallback_results.get("similar_startups"))
+            ),
+            "market_data": getattr(analysis, "market_data", fallback_results.get("market_data")),
+            "market_quantitative_model": getattr(analysis, "market_quantitative_model", fallback_results.get("market_quantitative_model")),
+            "funding_info": getattr(analysis, "funding_info", fallback_results.get("funding_info")),
+            "monetization": StartupAnalysisService._deserialize_result(
+                "monetization",
+                getattr(analysis, "monetization", fallback_results.get("monetization")),
+            ),
+            "customer_profile": getattr(analysis, "customer_profile", fallback_results.get("customer_profile")),
+            "tech_stack": getattr(analysis, "tech_stack", fallback_results.get("tech_stack")),
+            "swot": StartupAnalysisService._deserialize_result(
+                "swot",
+                getattr(analysis, "swot", fallback_results.get("swot")),
+            ),
+        }
+
+    @staticmethod
     def build_run_response(agent_run, analysis=None):
         if analysis is None and agent_run:
             analysis = StartupAnalysisService._get_analysis_for_run(agent_run)
@@ -87,16 +135,10 @@ class StartupAnalysisService:
                 or getattr(agent_run, "report_summary", None)
             ),
             "models_used": agent_run.models_used or {},
-            "results": {
-                "similar_startups": getattr(analysis, "similar_startups", fallback_results.get("similar_startups")),
-                "market_data": getattr(analysis, "market_data", fallback_results.get("market_data")),
-                "market_quantitative_model": getattr(analysis, "market_quantitative_model", fallback_results.get("market_quantitative_model")),
-                "funding_info": getattr(analysis, "funding_info", fallback_results.get("funding_info")),
-                "monetization": getattr(analysis, "monetization", fallback_results.get("monetization")),
-                "customer_profile": getattr(analysis, "customer_profile", fallback_results.get("customer_profile")),
-                "tech_stack": getattr(analysis, "tech_stack", fallback_results.get("tech_stack")),
-                "swot": getattr(analysis, "swot", fallback_results.get("swot")),
-            },
+            "results": StartupAnalysisService._build_response_results(
+                analysis,
+                fallback_results,
+            ),
             "execution_log": agent_run.execution_log or [],
             "critique": {
                 "overall_score": critique.get("overall_score", 0),

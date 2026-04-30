@@ -31,8 +31,10 @@ const pageStyle: React.CSSProperties = {
 
 const coverPageStyle: React.CSSProperties = {
   ...pageStyle,
+  height: "280mm", // Strict height safely inside the 282mm usable area to prevent overflow
   display: "flex",
   flexDirection: "column",
+  overflow: "hidden"
 };
 
 const quadrantPageStyle: React.CSSProperties = {
@@ -384,13 +386,13 @@ export async function downloadSWOTPDF(
           pdf.text("FOUNDERMIND", 12, 291);
           
           // Right side: Legend
-          pdf.setFont("times", "italic");
+          pdf.setFont("helvetica", "normal");
           pdf.setFontSize(9);
           pdf.setTextColor(100, 116, 139); // #64748b
           pdf.text("AI-Powered Startup Intelligence", 198, 291, { align: "right" });
         }
-      })
-      .save();
+        pdf.save(filename);
+      });
 
     onSuccess?.();
   } catch (err) {
