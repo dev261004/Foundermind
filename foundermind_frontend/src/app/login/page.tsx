@@ -1,17 +1,27 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuthStore } from "@/store/useAuthStore"
 
 export default function LoginPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { login, register, isLoading, error, clearError } = useAuthStore()
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [mode, setMode] = useState<"login" | "register">("login")
+
+    useEffect(() => {
+        const modeParam = searchParams.get("mode")
+        if (modeParam === "register") {
+            setMode("register")
+        } else if (modeParam === "login") {
+            setMode("login")
+        }
+    }, [searchParams])
 
     const isRegisterMode = mode === "register"
 
