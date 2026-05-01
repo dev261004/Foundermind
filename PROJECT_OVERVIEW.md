@@ -207,12 +207,7 @@ Frontend Display & Pitch Deck Generation
   - **market.py** - Market research tools
   - **funding.py** - Funding data collection
   - **monetization.py** - Revenue model generation
-  - **techstack.py** - Technology recommendations
-  - **swot.py** - SWOT analysis generation
-
-#### `apps/analytics/` - Market Intelligence & Insights
-- **tam.py** - TAM/SAM/SOM calculations
-- **risk_engine.py** - Risk assessment and scoring
+    - **techstack.py** - Technology stack recommendations (structured JSON with categories, items, gradients, confidence levels)
 - **competitor_matrix.py** - Competitive landscape visualization
 - **market_model.py** - Market trend modeling
 - **drift_detector.py** - Detects market changes
@@ -272,6 +267,7 @@ Frontend Display & Pitch Deck Generation
 - **execution/** - Analysis execution UI
 - **idea/** - Idea cards and forms
 - **results/** - Analysis results display
+  - **TechStack/** - Technology recommendations with interactive category cards, confidence badges, alternatives, and swap functionality
 - **layout/** - Navigation and structure components
 
 #### `src/lib/` - Utilities
@@ -292,9 +288,32 @@ Frontend Display & Pitch Deck Generation
 
 #### `src/types/` - TypeScript Definitions
 - **agent.ts** - Agent-related types
-- **analysis.ts** - Analysis result types
+- **analysis.ts** - Analysis result types (includes TechConfidence, TechItem, TechCategory, TechStack)
 - **analytics.ts** - Analytics data types
 - Plus domain-specific type files
+
+**TechStack Types (in analysis.ts):**
+```typescript
+type TechConfidence = 'Essential' | 'Recommended' | 'Optional';
+interface TechItem {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  reasoning: string;
+  confidence: TechConfidence;
+  alternatives: string[];
+}
+interface TechCategory {
+  id: string;
+  name: string;
+  gradient: string;
+  items: TechItem[];
+}
+interface TechStack {
+  categories: TechCategory[];
+}
+```
 
 #### `src/styles/` - Styling
 - **globals.css** - Global Tailwind styles
@@ -412,7 +431,26 @@ HTTP Response (JSON)
   funding_info: string,
   monetization: string,
   customer_profile: string,
-  tech_stack: string,
+  tech_stack: {
+    categories: [
+      {
+        id: string,           // kebab-case identifier (e.g., "data-ingestion")
+        name: string,         // human-readable name (e.g., "Data Ingestion")
+        gradient: string,     // Tailwind gradient (e.g., "from-orange-500 to-orange-600")
+        items: [
+          {
+            id: string,            // kebab-case tech ID (e.g., "python")
+            name: string,          // technology name (e.g., "Python")
+            emoji: string,         // single emoji
+            description: string,   // what this tech does for this idea
+            reasoning: string,     // why chosen for this specific idea
+            confidence: string,    // "Essential" | "Recommended" | "Optional"
+            alternatives: string[] // 2-3 alternative technologies
+          }
+        ]
+      }
+    ]
+  },
   swot: string,
   created_at: datetime
 }
@@ -539,7 +577,10 @@ SECRET_KEY=...                  # Django secret
    - Tool 3: Gather funding info
    - Tool 4: Generate monetization strategy (LLM)
    - Tool 5: Create customer profile (LLM)
-   - Tool 6: Suggest tech stack (LLM)
+   - Tool 6: Suggest tech stack (LLM) → Returns structured JSON with:
+     - **Max 6 Categories** per gradient type (orange, teal, blue, purple, green, cyan, red, pink)
+     - **Max 5 Tech Items** per category
+     - Each item includes confidence level, alternatives, and reasoning
    - Tool 7: Generate SWOT analysis (LLM)
 
 3. **Analytics Phase:**
@@ -570,7 +611,12 @@ SECRET_KEY=...                  # Django secret
    - Risk assessment
    - SWOT analysis
    - Monetization strategy
-   - Tech recommendations
+   - Tech Stack Recommendations (interactive categories with:
+     - Color-coded gradient categories
+     - Confidence badges (Essential, Recommended, Optional)
+     - Swap functionality to replace technologies
+     - Alternative suggestions for each tech
+     - Detailed reasoning for each recommendation)
 
 ### Step 6: Generate Pitch Deck
 1. User clicks "Generate Pitch Deck"
@@ -587,14 +633,15 @@ SECRET_KEY=...                  # Django secret
 | Technology | Reason |
 |-----------|--------|
 | **Django + DRF** | Mature, secure, REST API best practices |
-| **MongoDB** | Flexible schema for varied analysis outputs |
+| **MongoDB** | Flexible schema for varied analysis outputs, supports nested JSON structures for tech stack |
 | **Celery + Redis** | Asynchronous task processing for long-running analysis |
-| **Google Gemini** | Latest LLM for high-quality text generation |
+| **Google Gemini** | Latest LLM for high-quality text generation with structured output (JSON) |
 | **SerpAPI** | Reliable web search without scraping |
 | **Next.js** | Modern React framework, server-side rendering, built-in optimization |
 | **Zustand** | Lightweight state management (simpler than Redux) |
-| **Tailwind CSS** | Utility-first CSS for rapid UI development |
+| **Tailwind CSS** | Utility-first CSS for rapid UI development, gradient utilities for visual categorization |
 | **Three.js** | 3D graphics for engaging animations |
+| **Framer Motion** | Smooth animations for interactive component transitions |
 
 ---
 
