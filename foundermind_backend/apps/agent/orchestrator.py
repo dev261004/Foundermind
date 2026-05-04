@@ -50,6 +50,8 @@ DEFAULT_CRITIQUE_SECTIONS = (
     "market_data",
     "funding_info",
     "monetization",
+    "customer_profile",
+    "tech_stack",
     "swot",
 )
 
@@ -116,8 +118,20 @@ def hybrid_classify_idea(idea: str):
 
 class StartupOrchestrator:
     TARGET_OVERALL = 8
-    MIN_SECTION_SCORE = 5
+    MIN_SECTION_SCORE = 6
     TARGET_WEIGHTED = 7.5
+    MAX_IMPROVEMENT_ITERATIONS = 3
+    SCORE_IMPROVEMENT_EPSILON = 0.01
+    SECTION_TOOL_MAP = {
+        "similar_startups": "search_similar_startups",
+        "market_data": "search_market_data",
+        "funding_info": "search_funding_info",
+        "monetization": "generate_monetization_strategy",
+        "customer_profile": "generate_customer_profile",
+        "tech_stack": "suggest_tech_stack",
+        "swot": "generate_swot_analysis",
+    }
+    TOOL_ORDER = tuple(ToolExecutor.RESULT_KEY_MAP.keys())
 
     def _timestamp(self) -> str:
         return datetime.datetime.utcnow().isoformat()
@@ -179,38 +193,69 @@ class StartupOrchestrator:
         issues = [error_message] if error_message else ["Critic fallback used"]
         return {
             "overall_score": 6,
-            "section_scores": {section: 5 for section in DEFAULT_CRITIQUE_SECTIONS},
+            "section_scores": {section: self.MIN_SECTION_SCORE for section in DEFAULT_CRITIQUE_SECTIONS},
             "issues_found": issues,
             "rerun_tools": [],
             "needs_rerun": False,
         }
 
-    def review_results(self, idea: str, results: dict, log_callback=None):
+    def apply_rerun_decision(self, critique: dict) -> dict:
+        updated = dict(critique or {})
+        low_sections = self.get_low_scoring_sections(updated)
+        if not low_sections:
+            updated["rerun_tools"] = []
+            updated["needs_rerun"] = False
+            return updated
+
+        rerun_tools = self.get_rerun_tools(updated)
+        updated["rerun_tools"] = rerun_tools
+        updated["needs_rerun"] = bool(rerun_tools)
+        return updated
+
+    def review_results(self, idea: str, results: dict, log_callback=None, iteration: int | None = None):
         critic = CriticAgent()
         try:
             critique, critic_model = critic.review(idea, results)
-            self._append_log(log_callback, {
+            critique = self.apply_rerun_decision(critique)
+            log_entry = {
                 "agent": "critic",
                 "status": "completed",
                 "model_used": critic_model,
                 "timestamp": self._timestamp(),
-            })
+            }
+            if iteration is not None:
+                log_entry["iteration"] = iteration
+            self._append_log(log_callback, log_entry)
             return critique, critic_model
         except Exception as exc:
-            self._append_log(log_callback, {
+            log_entry = {
                 "agent": "critic",
                 "status": "failed",
                 "error": str(exc),
                 "error_type": type(exc).__name__,
                 "timestamp": self._timestamp(),
-            })
-            return self.build_default_critique(f"Critic failed: {exc}"), None
+            }
+            if iteration is not None:
+                log_entry["iteration"] = iteration
+            self._append_log(log_callback, log_entry)
+            return self.apply_rerun_decision(
+                self.build_default_critique(f"Critic failed: {exc}")
+            ), None
 
     def has_failed_tools(self, execution_log: list[dict]) -> bool:
-        return any(
-            entry.get("tool") and entry.get("status") == "failed"
-            for entry in execution_log
-        )
+        latest_tool_status = {}
+        for entry in execution_log:
+            tool = entry.get("tool")
+            status = entry.get("status")
+            if not tool:
+                continue
+            if status == "success":
+                latest_tool_status[tool] = "success"
+            elif status == "failed":
+                latest_tool_status[tool] = "failed"
+            elif status == "skipped" and entry.get("reason") == "checkpoint_found":
+                latest_tool_status[tool] = "success"
+        return any(status == "failed" for status in latest_tool_status.values())
 
     def collect_models_used(self, execution_log: list[dict]) -> dict:
         models_used = {}
@@ -244,6 +289,120 @@ class StartupOrchestrator:
         )
         return round(confidence, 3)
 
+    def _coerce_score(self, score) -> float:
+        try:
+            return float(score)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def compute_average_section_score(self, critique: dict) -> float:
+        sections = critique.get("section_scores") or {}
+        scores = [self._coerce_score(score) for score in sections.values()]
+        if not scores:
+            return 0.0
+        return round(sum(scores) / len(scores), 2)
+
+    def get_low_scoring_sections(self, critique: dict) -> dict:
+        sections = critique.get("section_scores") or {}
+        return {
+            section: self._coerce_score(score)
+            for section, score in sections.items()
+            if self._coerce_score(score) < self.MIN_SECTION_SCORE
+        }
+
+    def get_rerun_tools(self, critique: dict) -> list[str]:
+        requested = set(critique.get("rerun_tools") or [])
+        for section in self.get_low_scoring_sections(critique):
+            mapped_tool = self.SECTION_TOOL_MAP.get(section)
+            if mapped_tool:
+                requested.add(mapped_tool)
+
+        valid_tools = set(self.TOOL_ORDER)
+        return [
+            tool
+            for tool in self.TOOL_ORDER
+            if tool in requested and tool in valid_tools
+        ]
+
+    def get_convergence_reason(self, critique: dict, rerun_tools: list[str] | None = None) -> str | None:
+        low_sections = self.get_low_scoring_sections(critique)
+        if not low_sections:
+            return "All sections above threshold"
+
+        if rerun_tools is None:
+            rerun_tools = self.get_rerun_tools(critique)
+        if not rerun_tools:
+            return "No rerunnable tools available for low-scoring sections"
+
+        return None
+
+    def build_improvement_plan(self, plan: dict, rerun_tools: list[str]) -> dict:
+        rerun_set = set(rerun_tools)
+        steps = []
+        seen_tools = set()
+
+        for step in plan.get("steps", []):
+            tool = step.get("tool")
+            if tool not in self.TOOL_ORDER:
+                continue
+            copied_step = dict(step)
+            steps.append(copied_step)
+            if tool in rerun_set:
+                seen_tools.add(tool)
+
+        for tool in self.TOOL_ORDER:
+            if tool in rerun_set and tool not in seen_tools:
+                steps.append({
+                    "tool": tool,
+                    "depends_on": [],
+                })
+
+        for index, step in enumerate(steps, start=1):
+            step["step"] = index
+
+        return {"steps": steps}
+
+    def build_self_healing_log(
+        self,
+        *,
+        iteration: int,
+        critique: dict,
+        rerun_tools: list[str],
+        average_score: float,
+    ) -> dict:
+        return {
+            "type": "self_healing_cycle",
+            "status": "started",
+            "iteration": iteration,
+            "rerun_tools": rerun_tools,
+            "low_scoring_sections": self.get_low_scoring_sections(critique),
+            "section_scores": critique.get("section_scores", {}),
+            "issues_found": critique.get("issues_found", []),
+            "average_score": average_score,
+            "threshold": self.MIN_SECTION_SCORE,
+            "message": f"Critic requested improvement iteration {iteration}.",
+            "timestamp": self._timestamp(),
+        }
+
+    def build_convergence_log(
+        self,
+        *,
+        iterations_used: int,
+        convergence_reason: str,
+        iteration_scores: list[float],
+    ) -> dict:
+        return {
+            "type": "convergence",
+            "status": "completed",
+            "iteration": iterations_used,
+            "reason": convergence_reason,
+            "iteration_scores": iteration_scores,
+            "threshold": self.MIN_SECTION_SCORE,
+            "max_iterations": self.MAX_IMPROVEMENT_ITERATIONS,
+            "message": convergence_reason,
+            "timestamp": self._timestamp(),
+        }
+
     def run(self, idea: str, log_callback=None, checkpoints: list[dict] | None = None):
         execution_log = list(checkpoints or [])
 
@@ -273,9 +432,67 @@ class StartupOrchestrator:
             log_callback=append_log,
             checkpoints=checkpoints,
             use_checkpoints=True,
+            iteration=0,
         )
         results = self.enrich_results(execution_data["results"])
-        critique, _ = self.review_results(idea, results, log_callback=append_log)
+        critique, _ = self.review_results(idea, results, log_callback=append_log, iteration=0)
+        iteration_scores = [self.compute_average_section_score(critique)]
+        iterations_used = 0
+        convergence_reason = "Single-pass execution complete"
+
+        while True:
+            rerun_tools = self.get_rerun_tools(critique)
+            stop_reason = self.get_convergence_reason(critique, rerun_tools)
+            if stop_reason:
+                convergence_reason = stop_reason
+                break
+
+            if iterations_used >= self.MAX_IMPROVEMENT_ITERATIONS:
+                convergence_reason = "Maximum improvement iterations reached"
+                break
+
+            previous_average = iteration_scores[-1] if iteration_scores else 0.0
+            next_iteration = iterations_used + 1
+            append_log(self.build_self_healing_log(
+                iteration=next_iteration,
+                critique=critique,
+                rerun_tools=rerun_tools,
+                average_score=previous_average,
+            ))
+
+            improvement_plan = self.build_improvement_plan(plan, rerun_tools)
+            execution_data = executor.execute_with_plan(
+                idea,
+                improvement_plan,
+                log_callback=append_log,
+                checkpoints=execution_log,
+                use_checkpoints=True,
+                force_tools=rerun_tools,
+                iteration=next_iteration,
+            )
+            results = self.enrich_results(execution_data["results"])
+            critique, _ = self.review_results(
+                idea,
+                results,
+                log_callback=append_log,
+                iteration=next_iteration,
+            )
+            current_average = self.compute_average_section_score(critique)
+            iteration_scores.append(current_average)
+            iterations_used = next_iteration
+
+            if (
+                current_average <= previous_average + self.SCORE_IMPROVEMENT_EPSILON
+                and self.get_rerun_tools(critique)
+            ):
+                convergence_reason = "No score improvement detected"
+                break
+
+        append_log(self.build_convergence_log(
+            iterations_used=iterations_used,
+            convergence_reason=convergence_reason,
+            iteration_scores=iteration_scores,
+        ))
         report = reporter.generate_report(idea, results, execution_log)
 
         append_log({
@@ -296,8 +513,9 @@ class StartupOrchestrator:
             "classification_confidence": classification["classification_confidence"],
             "analysis_confidence": analysis_confidence,
             "weighted_score": weighted_score,
-            "iterations_used": 0,
-            "convergence_reason": "Single-pass execution complete",
+            "iterations_used": iterations_used,
+            "convergence_reason": convergence_reason,
+            "iteration_scores": iteration_scores,
             "models_used": self.collect_models_used(execution_log),
             "results": results,
             "execution_log": execution_log,

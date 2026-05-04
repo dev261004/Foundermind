@@ -151,10 +151,19 @@ def _mark_run_quota_exhausted(
 
 
 def _tool_failures_present(agent_run: AgentRun) -> bool:
-    return any(
-        entry.get("tool") and entry.get("status") == "failed"
-        for entry in (agent_run.execution_log or [])
-    )
+    latest_tool_status = {}
+    for entry in agent_run.execution_log or []:
+        tool = entry.get("tool")
+        status = entry.get("status")
+        if not tool:
+            continue
+        if status == "success":
+            latest_tool_status[tool] = "success"
+        elif status == "failed":
+            latest_tool_status[tool] = "failed"
+        elif status == "skipped" and entry.get("reason") == "checkpoint_found":
+            latest_tool_status[tool] = "success"
+    return any(status == "failed" for status in latest_tool_status.values())
 
 
 @shared_task(bind=True, soft_time_limit=300, time_limit=360)
@@ -299,36 +308,108 @@ def run_startup_analysis(self, run_id: str):
             update_log_callback=update_log_entry,
             checkpoints=checkpoints,
             use_checkpoints=True,
+            iteration=0,
         )
         results = orchestrator.enrich_results(execution_data["results"])
         _upsert_analysis_snapshot(agent_run, results)
 
-        persist_log_entry({
-            "agent": "critic",
-            "status": "started",
-            "message": "Reviewing the collected tool output.",
-            "timestamp": _timestamp(),
-        })
-
-        critique, critic_model = orchestrator.review_results(
-            idea_text,
-            results,
-        )
-        critic_failed = critic_model is None
-        update_log_entry(
-            agent_name="critic",
-            updates={
-                "status": "failed" if critic_failed else "completed",
-                "model_used": critic_model,
-                "error": critique.get("issues_found", [None])[0] if critic_failed else None,
+        def review_iteration(iteration: int):
+            persist_log_entry({
+                "agent": "critic",
+                "status": "started",
+                "iteration": iteration,
                 "message": (
-                    "Critic failed, using the fallback critique."
-                    if critic_failed
-                    else "Critic finished scoring the collected sections."
+                    "Reviewing the collected tool output."
+                    if iteration == 0
+                    else f"Reviewing improvement iteration {iteration}."
                 ),
-                "completed_at": _timestamp(),
-            },
-        )
+                "timestamp": _timestamp(),
+            })
+
+            iteration_critique, critic_model = orchestrator.review_results(
+                idea_text,
+                results,
+            )
+            critic_failed = critic_model is None
+            average_score = orchestrator.compute_average_section_score(iteration_critique)
+            update_log_entry(
+                agent_name="critic",
+                updates={
+                    "status": "failed" if critic_failed else "completed",
+                    "iteration": iteration,
+                    "model_used": critic_model,
+                    "section_scores": iteration_critique.get("section_scores", {}),
+                    "average_score": average_score,
+                    "error": (
+                        iteration_critique.get("issues_found", [None])[0]
+                        if critic_failed
+                        else None
+                    ),
+                    "message": (
+                        "Critic failed, using the fallback critique."
+                        if critic_failed
+                        else f"Critic scored iteration {iteration}."
+                    ),
+                    "completed_at": _timestamp(),
+                },
+            )
+            return iteration_critique, critic_model, average_score
+
+        critique, _, average_score = review_iteration(0)
+        iteration_scores = [average_score]
+        iterations_used = 0
+        convergence_reason = "Single-pass execution complete"
+
+        while True:
+            rerun_tools = orchestrator.get_rerun_tools(critique)
+            stop_reason = orchestrator.get_convergence_reason(critique, rerun_tools)
+            if stop_reason:
+                convergence_reason = stop_reason
+                break
+
+            if iterations_used >= orchestrator.MAX_IMPROVEMENT_ITERATIONS:
+                convergence_reason = "Maximum improvement iterations reached"
+                break
+
+            previous_average = iteration_scores[-1] if iteration_scores else 0.0
+            next_iteration = iterations_used + 1
+            persist_log_entry(orchestrator.build_self_healing_log(
+                iteration=next_iteration,
+                critique=critique,
+                rerun_tools=rerun_tools,
+                average_score=previous_average,
+            ))
+
+            agent_run.reload()
+            execution_data = executor.execute_with_plan(
+                idea_text,
+                orchestrator.build_improvement_plan(plan, rerun_tools),
+                log_callback=persist_log_entry,
+                update_log_callback=update_log_entry,
+                checkpoints=list(agent_run.execution_log or []),
+                use_checkpoints=True,
+                force_tools=rerun_tools,
+                iteration=next_iteration,
+            )
+            results = orchestrator.enrich_results(execution_data["results"])
+            _upsert_analysis_snapshot(agent_run, results)
+
+            critique, _, current_average = review_iteration(next_iteration)
+            iteration_scores.append(current_average)
+            iterations_used = next_iteration
+
+            if (
+                current_average <= previous_average + orchestrator.SCORE_IMPROVEMENT_EPSILON
+                and orchestrator.get_rerun_tools(critique)
+            ):
+                convergence_reason = "No score improvement detected"
+                break
+
+        persist_log_entry(orchestrator.build_convergence_log(
+            iterations_used=iterations_used,
+            convergence_reason=convergence_reason,
+            iteration_scores=iteration_scores,
+        ))
 
         analysis_confidence = orchestrator.compute_confidence_score(
             critique,
@@ -338,6 +419,18 @@ def run_startup_analysis(self, run_id: str):
             critique.get("section_scores", {}),
             classification["weights"],
         )
+
+        agent_run.reload()
+        agent_run.critique = critique
+        agent_run.idea_type = classification["idea_type"]
+        agent_run.classification_confidence = classification["classification_confidence"]
+        agent_run.analysis_confidence = analysis_confidence
+        agent_run.overall_score = critique.get("overall_score")
+        agent_run.weighted_score = weighted_score
+        agent_run.iterations_used = iterations_used
+        agent_run.convergence_reason = convergence_reason
+        agent_run.iteration_scores = iteration_scores
+        agent_run.save()
 
         persist_log_entry({
             "agent": "reporter",
@@ -411,8 +504,9 @@ def run_startup_analysis(self, run_id: str):
         agent_run.analysis_confidence = analysis_confidence
         agent_run.overall_score = critique.get("overall_score")
         agent_run.weighted_score = weighted_score
-        agent_run.iterations_used = 0
-        agent_run.convergence_reason = "Single-pass execution complete"
+        agent_run.iterations_used = iterations_used
+        agent_run.convergence_reason = convergence_reason
+        agent_run.iteration_scores = iteration_scores
         agent_run.models_used = orchestrator.collect_models_used(agent_run.execution_log or [])
         agent_run.save()
 

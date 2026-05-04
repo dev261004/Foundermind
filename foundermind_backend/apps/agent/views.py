@@ -122,6 +122,9 @@ def get_analysis_status(request, run_id):
         "execution_log": run.execution_log or [],
         "critique": run.critique or {},
         "confidence": getattr(run, "analysis_confidence", None),
+        "iterations_used": run.iterations_used or 0,
+        "convergence_reason": run.convergence_reason,
+        "iteration_scores": run.iteration_scores or [],
     }
 
     if run.status in StartupAnalysisService.RESULT_AVAILABLE_STATUSES:

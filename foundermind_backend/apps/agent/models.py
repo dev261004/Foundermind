@@ -21,6 +21,7 @@ class AgentRun(me.Document):
 
     iterations_used = me.IntField()
     convergence_reason = me.StringField()
+    iteration_scores = me.ListField(me.FloatField(), default=list)
 
     created_at = me.DateTimeField(default=datetime.datetime.utcnow)
     meta = {

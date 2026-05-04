@@ -23,8 +23,19 @@ class CriticAgent:
         "market_data",
         "funding_info",
         "monetization",
+        "customer_profile",
+        "tech_stack",
         "swot"
     ]
+
+    DEFAULT_PASSING_SCORE = 6
+
+    def _coerce_score(self, value):
+        try:
+            score = float(value)
+        except (TypeError, ValueError):
+            score = self.DEFAULT_PASSING_SCORE
+        return max(1, min(10, score))
 
     def review(self, idea: str, results: dict):
 
@@ -60,6 +71,12 @@ Funding Info:
 Monetization:
 {results.get("monetization")}
 
+Customer Profile:
+{results.get("customer_profile")}
+
+Tech Stack:
+{results.get("tech_stack")}
+
 SWOT:
 {results.get("swot")}
 
@@ -76,6 +93,7 @@ Tool mapping guidance:
 - Funding Info → search_funding_info
 - Monetization → generate_monetization_strategy
 - Customer Profile → generate_customer_profile
+- Tech Stack → suggest_tech_stack
 - SWOT → generate_swot_analysis
 
 Return STRICT JSON only:
@@ -87,6 +105,8 @@ Return STRICT JSON only:
     "market_data": 1-10,
     "funding_info": 1-10,
     "monetization": 1-10,
+    "customer_profile": 1-10,
+    "tech_stack": 1-10,
     "swot": 1-10
   }},
   "issues_found": ["..."],
@@ -97,6 +117,9 @@ Return STRICT JSON only:
 Rules:
 - If funding info is unrelated → suggest search_funding_info
 - If market lacks numeric data → suggest search_market_data
+- If customer profile is generic or not actionable → suggest generate_customer_profile
+- If tech stack is generic for a technical startup → suggest suggest_tech_stack
+- If the startup is non-technical and tech_stack is empty, do not penalize it or request rerun
 - If quantitative model exists:
     - Validate TAM size realism
     - Validate CAGR reasonableness (2%–40% typical range)
@@ -115,28 +138,34 @@ Rules:
 
             critique = json.loads(json_match.group())
 
-            # 🔒 Enforce allowed tools only
+            # Enforce allowed tools only.
             critique["rerun_tools"] = [
                 tool for tool in critique.get("rerun_tools", [])
                 if tool in self.AVAILABLE_TOOLS
             ]
 
-            # 🔒 Enforce section completeness
+            # Enforce section completeness and score bounds.
             section_scores = critique.get("section_scores", {})
+            normalized_scores = {}
             for section in self.REQUIRED_SECTIONS:
-                if section not in section_scores:
-                    section_scores[section] = 5
-            critique["section_scores"] = section_scores
+                normalized_scores[section] = self._coerce_score(
+                    section_scores.get(section, self.DEFAULT_PASSING_SCORE)
+                )
+            critique["section_scores"] = normalized_scores
+            critique["overall_score"] = self._coerce_score(
+                critique.get("overall_score", self.DEFAULT_PASSING_SCORE)
+            )
 
-            # 🔒 Logical consistency enforcement
             if critique.get("needs_rerun") and not critique["rerun_tools"]:
                 critique["needs_rerun"] = False
+            elif critique["rerun_tools"]:
+                critique["needs_rerun"] = True
 
         except Exception:
             critique = {
                 "overall_score": 6,
                 "section_scores": {
-                    s: 5 for s in self.REQUIRED_SECTIONS
+                    s: self.DEFAULT_PASSING_SCORE for s in self.REQUIRED_SECTIONS
                 },
                 "issues_found": ["Critic parsing failed"],
                 "rerun_tools": [],

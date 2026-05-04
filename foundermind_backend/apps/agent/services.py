@@ -153,6 +153,9 @@ class StartupAnalysisService:
                 getattr(analysis, "report_summary", None)
                 or getattr(agent_run, "report_summary", None)
             ),
+            "iterations_used": agent_run.iterations_used or 0,
+            "convergence_reason": agent_run.convergence_reason,
+            "iteration_scores": agent_run.iteration_scores or [],
             "models_used": agent_run.models_used or {},
             "results": StartupAnalysisService._build_response_results(
                 analysis,

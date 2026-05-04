@@ -228,6 +228,13 @@ export interface AgentExecutionLogEntry {
   iteration?: number
   rerun_tools?: string[]
   reason?: string
+  issues_found?: string[]
+  section_scores?: Record<string, number>
+  low_scoring_sections?: Record<string, number>
+  average_score?: number
+  threshold?: number
+  max_iterations?: number
+  iteration_scores?: number[]
   after_tool?: string
   delay_seconds?: number
 }
@@ -239,6 +246,9 @@ export interface AgentAnalysisResponse {
   classification_confidence: number
   analysis_confidence: number
   report_summary?: string | null
+  iterations_used?: number
+  convergence_reason?: string | null
+  iteration_scores?: number[]
   models_used?: Record<string, string>
   results: AgentAnalysisResults
   execution_log: AgentExecutionLogEntry[]
@@ -261,5 +271,8 @@ export interface AgentAnalysisStatusResponse {
   execution_log: AgentExecutionLogEntry[]
   critique?: Partial<AgentCritique> & { error?: string; message?: string }
   confidence?: number | null
+  iterations_used?: number
+  convergence_reason?: string | null
+  iteration_scores?: number[]
   result?: AgentAnalysisResponse
 }

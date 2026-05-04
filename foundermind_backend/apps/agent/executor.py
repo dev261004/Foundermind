@@ -88,6 +88,25 @@ class ToolExecutor:
             return entry
         return None
 
+    def _will_execute_later(
+        self,
+        steps: list[dict],
+        start_index: int,
+        force_tools: set[str] | None,
+        checkpoints: list[dict] | None,
+        use_checkpoints: bool,
+    ) -> bool:
+        for step in steps[start_index:]:
+            tool_name = step.get("tool")
+            if force_tools is not None:
+                if tool_name in force_tools:
+                    return True
+                continue
+            if use_checkpoints and self._find_checkpoint(tool_name, checkpoints):
+                continue
+            return True
+        return False
+
     def execute_with_plan(
         self,
         idea: str,
@@ -96,12 +115,17 @@ class ToolExecutor:
         update_log_callback=None,
         checkpoints: list[dict] | None = None,
         use_checkpoints: bool = True,
+        force_tools: list[str] | set[str] | None = None,
+        iteration: int | None = None,
     ):
 
         execution_log = []
         results = self._restore_results(checkpoints)
+        forced_tool_set = set(force_tools or []) if force_tools is not None else None
 
         def append_log(entry: dict):
+            if iteration is not None:
+                entry.setdefault("iteration", iteration)
             execution_log.append(entry)
             if log_callback:
                 log_callback(entry)
@@ -123,9 +147,10 @@ class ToolExecutor:
         for index, step in enumerate(steps):
             tool_name = step.get("tool")
             executed_tool = False
+            is_forced = forced_tool_set is not None and tool_name in forced_tool_set
             checkpoint_entry = (
                 self._find_checkpoint(tool_name, checkpoints)
-                if use_checkpoints
+                if use_checkpoints and not is_forced
                 else None
             )
 
@@ -142,6 +167,15 @@ class ToolExecutor:
                     "message": f"Skipping {tool_name} - checkpoint found",
                     "result": checkpoint_entry["result"],
                     "model_used": checkpoint_entry.get("model_used"),
+                    "timestamp": self._timestamp(),
+                })
+            elif forced_tool_set is not None and not is_forced:
+                append_log({
+                    "tool": tool_name,
+                    "status": "skipped",
+                    "reason": "not_requested_for_rerun",
+                    "message": f"Skipping {tool_name} - not requested by critic for this iteration",
+                    "result": None,
                     "timestamp": self._timestamp(),
                 })
             else:
@@ -207,7 +241,13 @@ class ToolExecutor:
                         "completed_at": self._timestamp(),
                     })
 
-            if executed_tool and index < len(steps) - 1:
+            if executed_tool and self._will_execute_later(
+                steps,
+                index + 1,
+                forced_tool_set,
+                checkpoints,
+                use_checkpoints,
+            ):
                 append_log({
                     "type": "inter_tool_delay",
                     "after_tool": tool_name,
