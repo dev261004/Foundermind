@@ -1,14 +1,21 @@
+import datetime
+
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Idea
-from apps.agent.models import AgentRun, IdeaAnalysis
+from mongoengine.errors import ValidationError
 
+from .models import Idea, IDEA_STATUS_DELETED
+from apps.agent.models import AgentRun, IdeaAnalysis
 
 from core.permissions import jwt_required
 
 
 def _serialize_datetime(value):
     return value.isoformat() if value else None
+
+
+def _get_visible_ideas(email):
+    return Idea.objects(user_email=email, status__ne=IDEA_STATUS_DELETED)
 
 
 def _build_preview(analysis):
@@ -80,7 +87,7 @@ def create_idea(request):
 @jwt_required
 def get_ideas(request):
     email = request.user_email
-    ideas = Idea.objects(user_email=email)
+    ideas = _get_visible_ideas(email)
 
     return Response({
         "ideas": [idea.to_json() for idea in ideas]
@@ -91,7 +98,7 @@ def get_ideas(request):
 @jwt_required
 def get_idea_history(request):
     email = request.user_email
-    ideas = Idea.objects(user_email=email)
+    ideas = _get_visible_ideas(email)
 
     history = []
 
@@ -145,4 +152,35 @@ def get_idea_history(request):
     return Response({
         "history": history,
         "count": len(history),
+    })
+
+
+@api_view(['DELETE'])
+@jwt_required
+def delete_idea(request, idea_id):
+    email = request.user_email
+
+    try:
+        deleted_idea = (
+            Idea.objects(
+                id=idea_id,
+                user_email=email,
+                status__ne=IDEA_STATUS_DELETED,
+            )
+            .modify(
+                new=True,
+                set__status=IDEA_STATUS_DELETED,
+                set__updated_at=datetime.datetime.utcnow(),
+            )
+        )
+    except ValidationError:
+        deleted_idea = None
+
+    if not deleted_idea:
+        return Response({"error": "Idea not found"}, status=404)
+
+    return Response({
+        "message": "Idea deleted successfully",
+        "idea_id": str(deleted_idea.id),
+        "status": deleted_idea.status,
     })

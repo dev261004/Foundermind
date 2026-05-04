@@ -1,12 +1,15 @@
 import mongoengine as me
 import datetime
 
+IDEA_STATUS_ACTIVE = "active"
+IDEA_STATUS_DELETED = "deleted"
+
 
 class Idea(me.Document):
     user_email = me.StringField(required=True)
     title = me.StringField(required=True)
     description = me.StringField()
-    status = me.StringField(default="active")
+    status = me.StringField(default=IDEA_STATUS_ACTIVE)
 
     created_at = me.DateTimeField(default=datetime.datetime.utcnow)
     updated_at = me.DateTimeField(default=datetime.datetime.utcnow)

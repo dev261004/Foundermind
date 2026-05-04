@@ -42,6 +42,12 @@ export interface IdeaHistoryResponse {
   count: number
 }
 
+export interface DeleteIdeaResponse {
+  message: string
+  idea_id: string
+  status: "deleted"
+}
+
 export const ideaService = {
   create: async (data: CreateIdeaRequest): Promise<CreateIdeaResponse> => {
     const response = await apiClient.post<CreateIdeaResponse>("/ideas/create/", data)
@@ -50,6 +56,11 @@ export const ideaService = {
 
   getHistory: async (): Promise<IdeaHistoryResponse> => {
     const response = await apiClient.get<IdeaHistoryResponse>("/ideas/history/")
+    return response.data
+  },
+
+  deleteIdea: async (ideaId: string): Promise<DeleteIdeaResponse> => {
+    const response = await apiClient.delete<DeleteIdeaResponse>(`/ideas/${ideaId}/delete/`)
     return response.data
   },
 }

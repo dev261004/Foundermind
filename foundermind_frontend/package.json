@@ -23,6 +23,7 @@
     "react-markdown": "^10.1.0",
     "react-tsparticles": "^2.12.2",
     "remark-gfm": "^4.0.1",
+    "sonner": "^2.0.7",
     "three": "^0.183.2",
     "tsparticles": "^3.9.1",
     "tsparticles-slim": "^2.12.0",
