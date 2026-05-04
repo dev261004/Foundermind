@@ -25,7 +25,8 @@ class AgentRun(me.Document):
 
     created_at = me.DateTimeField(default=datetime.datetime.utcnow)
     meta = {
-        "ordering": ["-created_at"]
+        "ordering": ["-created_at"],
+        "strict": False
     }
 
 

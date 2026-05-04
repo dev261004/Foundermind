@@ -193,6 +193,8 @@ def run_startup_analysis(self, run_id: str):
     if not idea_obj:
         raise ValueError("Idea not found")
     idea_text = idea_obj.title
+    if getattr(idea_obj, "description", None) and idea_obj.description.strip():
+        idea_text = f"{idea_obj.title}\n\n{idea_obj.description}"
 
     orchestrator = StartupOrchestrator()
     planner = PlannerAgent()
