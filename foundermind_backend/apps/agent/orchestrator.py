@@ -122,6 +122,13 @@ class StartupOrchestrator:
     TARGET_WEIGHTED = 7.5
     MAX_IMPROVEMENT_ITERATIONS = 2
     SCORE_IMPROVEMENT_EPSILON = 0.01
+    SWOT_DEPENDENCY_TOOLS = {
+        "search_similar_startups",
+        "search_market_data",
+        "search_funding_info",
+        "generate_monetization_strategy",
+        "generate_customer_profile",
+    }
     SECTION_TOOL_MAP = {
         "similar_startups": "search_similar_startups",
         "market_data": "search_market_data",
@@ -316,6 +323,9 @@ class StartupOrchestrator:
             mapped_tool = self.SECTION_TOOL_MAP.get(section)
             if mapped_tool:
                 requested.add(mapped_tool)
+
+        if requested & self.SWOT_DEPENDENCY_TOOLS:
+            requested.add("generate_swot_analysis")
 
         valid_tools = set(self.TOOL_ORDER)
         return [

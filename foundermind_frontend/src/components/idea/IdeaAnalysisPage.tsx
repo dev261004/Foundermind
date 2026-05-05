@@ -20,9 +20,9 @@ import {
   Users,
   Cpu,
   Zap,
-  HelpCircle,
   ArrowRight as ArrowRightIcon,
   MessageSquare,
+  type LucideIcon,
 } from "lucide-react";
 import { useRunStore } from "@/store/useRunStore";
 import { useIdeaStore } from "@/store/useIdeaStore";
@@ -62,7 +62,7 @@ const SECTION_CONFIG: Array<{
   title: string;
   subtitle: string;
   pill: string;
-  icon: any;
+  icon: LucideIcon;
 }> = [
   {
     key: "similar_startups",
@@ -624,7 +624,7 @@ function DrawerSection({
   title: string;
   subtitle: string;
   pill: string;
-  pillIcon?: any;
+  pillIcon?: LucideIcon;
   pillElement?: ReactNode;
   defaultOpen?: boolean;
   countLabel?: string;
@@ -697,31 +697,11 @@ function LoadingState({
           ))}
         </div>
 
-        {executionLog.length > 0 && (
-          <section className={styles.loadingTimeline}>
-            <div className={styles.cardHeader}>
-              <div>
-                <h2 className={styles.cardTitle}>Execution Timeline</h2>
-                <span className={styles.cardSubtitle}>
-                  Live tool progress while your analysis is being generated.
-                </span>
-              </div>
-              <span className={styles.pill}>
-                <Activity size={14} />
-                {executionLog.length} events
-              </span>
-            </div>
-
-            <div className={styles.timelineList}>
-              {executionLog.map((entry, index) => (
-                <TimelineEntry
-                  key={`${entry.type ?? entry.tool ?? "event"}-${index}`}
-                  entry={entry}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+        <ExecutionTimelineCard
+          executionLog={executionLog}
+          subtitle="Live tool progress while your analysis is being generated."
+          emptyMessage="Waiting for the first backend event. The timeline will populate as soon as the backend persists the next step."
+        />
       </div>
     </section>
   );
@@ -849,29 +829,55 @@ function ClarificationPanel() {
       </div>
 
       {executionLog.length > 0 && (
-        <section className={styles.loadingTimeline} style={{ marginTop: 28, width: "min(760px, 100%)" }}>
-          <div className={styles.cardHeader}>
-            <div>
-              <h2 className={styles.cardTitle}>Execution Timeline</h2>
-              <span className={styles.cardSubtitle}>
-                Steps completed before clarification was requested.
-              </span>
-            </div>
-            <span className={styles.pill}>
-              <Activity size={14} />
-              {executionLog.length} events
-            </span>
-          </div>
+        <ExecutionTimelineCard
+          executionLog={executionLog}
+          subtitle="Steps completed before clarification was requested."
+          className={styles.clarificationTimeline}
+        />
+      )}
+    </section>
+  );
+}
 
-          <div className={styles.timelineList}>
-            {executionLog.map((entry, index) => (
-              <TimelineEntry
-                key={`${entry.type ?? entry.tool ?? "event"}-${index}`}
-                entry={entry}
-              />
-            ))}
-          </div>
-        </section>
+
+
+function ExecutionTimelineCard({
+  executionLog,
+  subtitle,
+  emptyMessage,
+  className,
+}: {
+  executionLog: AgentExecutionLogEntry[];
+  subtitle: string;
+  emptyMessage?: string;
+  className?: string;
+}) {
+  return (
+    <section className={[styles.loadingTimeline, className].filter(Boolean).join(" ")}>
+      <div className={styles.cardHeader}>
+        <div>
+          <h2 className={styles.cardTitle}>Execution Timeline</h2>
+          <span className={styles.cardSubtitle}>{subtitle}</span>
+        </div>
+        <span className={styles.pill}>
+          <Activity size={14} />
+          {executionLog.length} events
+        </span>
+      </div>
+
+      {executionLog.length > 0 ? (
+        <div className={styles.timelineList}>
+          {executionLog.map((entry, index) => (
+            <TimelineEntry
+              key={`${entry.timestamp ?? entry.type ?? entry.tool ?? "event"}-${index}`}
+              entry={entry}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className={styles.timelineEmpty}>
+          {emptyMessage ?? "No execution events have been recorded yet."}
+        </div>
       )}
     </section>
   );

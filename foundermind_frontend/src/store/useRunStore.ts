@@ -6,6 +6,40 @@ type RunStatus = "idle" | "running" | "completed" | "partial" | "failed" | "quot
 
 const RESULT_READY_STATUSES = new Set<RunStatus>(["completed", "partial", "quota_exhausted"])
 
+function areExecutionLogsEqual(
+  current: AgentAnalysisResponse["execution_log"],
+  next: AgentAnalysisResponse["execution_log"]
+) {
+  if (current === next) {
+    return true
+  }
+
+  if (current.length !== next.length) {
+    return false
+  }
+
+  return JSON.stringify(current) === JSON.stringify(next)
+}
+
+function getStableExecutionLog(
+  current: AgentAnalysisResponse["execution_log"],
+  next: AgentAnalysisResponse["execution_log"] | null | undefined
+) {
+  if (!next) {
+    return current
+  }
+
+  if (next.length === 0 && current.length > 0) {
+    return current
+  }
+
+  if (areExecutionLogsEqual(current, next)) {
+    return current
+  }
+
+  return next
+}
+
 interface RunState {
   activeIdeaId: string | null
   activeRunId: string | null
@@ -122,21 +156,27 @@ export const useRunStore = create<RunState>((set) => ({
 
         // Handle awaiting_clarification during polling
         if (poll.status === "awaiting_clarification") {
-          set({
+          set((current) => ({
             activeIdeaId: ideaId,
             activeRunId: agent_run_id,
-            executionLog: poll.execution_log ?? [],
+            executionLog: getStableExecutionLog(
+              current.executionLog,
+              poll.execution_log
+            ),
             status: "awaiting_clarification",
             error: null,
             clarificationQuestions: poll.clarification_questions ?? [],
-          })
+          }))
           return // Stop polling
         }
 
         set((current) => ({
           activeIdeaId: ideaId,
           activeRunId: agent_run_id,
-          executionLog: poll.execution_log ?? current.executionLog,
+          executionLog: getStableExecutionLog(
+            current.executionLog,
+            poll.execution_log
+          ),
           status:
             poll.status === "failed"
               ? "failed"
@@ -217,21 +257,27 @@ export const useRunStore = create<RunState>((set) => ({
           const poll = await agentService.getAnalysisStatus(runId)
 
           if (poll.status === "awaiting_clarification") {
-            set({
+            set((current) => ({
               activeIdeaId: ideaId,
               activeRunId: runId,
-              executionLog: poll.execution_log ?? [],
+              executionLog: getStableExecutionLog(
+                current.executionLog,
+                poll.execution_log
+              ),
               status: "awaiting_clarification",
               error: null,
               clarificationQuestions: poll.clarification_questions ?? [],
-            })
+            }))
             return
           }
 
           set((current) => ({
             activeIdeaId: ideaId,
             activeRunId: runId,
-            executionLog: poll.execution_log ?? current.executionLog,
+            executionLog: getStableExecutionLog(
+              current.executionLog,
+              poll.execution_log
+            ),
             status:
               poll.status === "failed"
                 ? "failed"

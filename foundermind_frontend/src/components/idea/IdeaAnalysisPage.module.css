@@ -671,6 +671,17 @@
   margin-top: 18px;
 }
 
+.timelineEmpty {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #92a0b8;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .timelineItem {
   position: relative;
   display: grid;
@@ -727,6 +738,11 @@
   border-radius: 32px;
   padding: 36px;
   text-align: center;
+}
+
+.clarificationTimeline {
+  margin-top: 28px;
+  width: min(760px, 100%);
 }
 
 .loader {

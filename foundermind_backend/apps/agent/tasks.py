@@ -15,9 +15,27 @@ from apps.analytics.tool_drift_detector import ToolDriftDetector
 from apps.ideas.models import Idea
 from core.exceptions import LLMQuotaExhaustedError
 
+STARTUP_ANALYSIS_SOFT_TIMEOUT_SECONDS = 600
+STARTUP_ANALYSIS_HARD_TIMEOUT_SECONDS = 660
+
 
 def _timestamp() -> str:
     return datetime.datetime.utcnow().isoformat()
+
+
+def _format_timeout_window(seconds: int) -> str:
+    if seconds % 60 == 0:
+        minutes = seconds // 60
+        suffix = "" if minutes == 1 else "s"
+        return f"{minutes} minute{suffix}"
+    return f"{seconds} seconds"
+
+
+def _build_timeout_message() -> str:
+    return (
+        "Analysis timed out after "
+        f"{_format_timeout_window(STARTUP_ANALYSIS_SOFT_TIMEOUT_SECONDS)}"
+    )
 
 
 def _save_execution_entry(agent_run: AgentRun, entry: dict, status: str = "running"):
@@ -170,7 +188,11 @@ def _tool_failures_present(agent_run: AgentRun) -> bool:
     return any(status == "failed" for status in latest_tool_status.values())
 
 
-@shared_task(bind=True, soft_time_limit=480, time_limit=540)
+@shared_task(
+    bind=True,
+    soft_time_limit=STARTUP_ANALYSIS_SOFT_TIMEOUT_SECONDS,
+    time_limit=STARTUP_ANALYSIS_HARD_TIMEOUT_SECONDS,
+)
 def run_startup_analysis(self, run_id: str):
     agent_run = AgentRun.objects(id=run_id).first()
     if not agent_run:
@@ -620,7 +642,7 @@ def run_startup_analysis(self, run_id: str):
 
         return {"status": final_status}
     except SoftTimeLimitExceeded:
-        timeout_message = "Analysis timed out after 5 minutes"
+        timeout_message = _build_timeout_message()
         _mark_run_failed(agent_run, timeout_message)
         return {
             "status": "failed",

@@ -1,6 +1,7 @@
+import concurrent.futures
 import datetime
 import json
-import time
+import threading
 
 from apps.agent.tools.similar_startups import search_similar_startups
 from apps.agent.tools.market import search_market_data
@@ -16,7 +17,15 @@ class ToolExecutor:
     Executes tools dynamically based on planner output.
     """
 
-    INTER_TOOL_GAP_SECONDS = 3
+    MAX_PARALLEL_TOOLS = 3
+    PARALLEL_WAVE_TOOLS = {
+        "search_similar_startups",
+        "search_market_data",
+        "search_funding_info",
+        "generate_monetization_strategy",
+        "generate_customer_profile",
+        "suggest_tech_stack",
+    }
 
     RESULT_KEY_MAP = {
         "search_similar_startups": "similar_startups",
@@ -88,24 +97,39 @@ class ToolExecutor:
             return entry
         return None
 
-    def _will_execute_later(
-        self,
-        steps: list[dict],
-        start_index: int,
-        force_tools: set[str] | None,
-        checkpoints: list[dict] | None,
-        use_checkpoints: bool,
-    ) -> bool:
-        for step in steps[start_index:]:
-            tool_name = step.get("tool")
-            if force_tools is not None:
-                if tool_name in force_tools:
-                    return True
-                continue
-            if use_checkpoints and self._find_checkpoint(tool_name, checkpoints):
-                continue
-            return True
-        return False
+    def _run_tool(self, idea: str, tool_name: str, results: dict | None = None):
+        if tool_name == "search_similar_startups":
+            return search_similar_startups(idea)
+
+        if tool_name == "search_market_data":
+            return search_market_data(idea)
+
+        if tool_name == "search_funding_info":
+            return search_funding_info(idea)
+
+        if tool_name == "generate_monetization_strategy":
+            return generate_monetization_strategy(idea)
+
+        if tool_name == "generate_customer_profile":
+            return generate_customer_profile(idea)
+
+        if tool_name == "suggest_tech_stack":
+            if is_technical_startup(idea):
+                return suggest_tech_stack(idea)
+            return {}
+
+        if tool_name == "generate_swot_analysis":
+            current_results = results or {}
+            return generate_swot_analysis(
+                idea,
+                current_results.get("similar_startups", ""),
+                current_results.get("market_data", ""),
+                current_results.get("funding_info", ""),
+                current_results.get("monetization", ""),
+                current_results.get("customer_profile", ""),
+            )
+
+        raise ValueError("Unknown tool")
 
     def execute_with_plan(
         self,
@@ -122,31 +146,74 @@ class ToolExecutor:
         execution_log = []
         results = self._restore_results(checkpoints)
         forced_tool_set = set(force_tools or []) if force_tools is not None else None
+        state_lock = threading.Lock()
+        parallel_executor = None
+        parallel_futures: dict[concurrent.futures.Future, str] = {}
 
         def append_log(entry: dict):
             if iteration is not None:
                 entry.setdefault("iteration", iteration)
-            execution_log.append(entry)
+            with state_lock:
+                execution_log.append(entry)
             if log_callback:
                 log_callback(entry)
 
         def update_started_entry(tool_name: str, updates: dict):
-            for entry in reversed(execution_log):
-                if entry.get("tool") != tool_name:
-                    continue
-                if entry.get("status") != "started":
-                    continue
-                entry.update(updates)
-                break
+            with state_lock:
+                for entry in reversed(execution_log):
+                    if entry.get("tool") != tool_name:
+                        continue
+                    if entry.get("status") != "started":
+                        continue
+                    entry.update(updates)
+                    break
 
             if update_log_callback:
                 update_log_callback(tool_name=tool_name, updates=updates)
 
+        def append_result(tool_name: str, output) -> None:
+            with state_lock:
+                self._append_result(results, tool_name, output)
+
+        def flush_parallel_tools() -> None:
+            nonlocal parallel_executor, parallel_futures
+
+            if not parallel_futures:
+                return
+
+            futures = list(parallel_futures.items())
+            for future, tool_name in futures:
+                try:
+                    output = future.result()
+                    append_result(tool_name, output)
+                    update_started_entry(tool_name, {
+                        "status": "success",
+                        "result": self._serialize_result(tool_name, output),
+                        "model_used": getattr(output, "model_used", None),
+                        "message": (
+                            f"{tool_name} completed using "
+                            f"{getattr(output, 'model_used', 'no-model')}"
+                        ),
+                        "completed_at": self._timestamp(),
+                    })
+                except Exception as exc:
+                    update_started_entry(tool_name, {
+                        "status": "failed",
+                        "result": None,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "message": f"{tool_name} failed: {exc} - continuing pipeline",
+                        "completed_at": self._timestamp(),
+                    })
+
+            parallel_executor.shutdown(wait=True)
+            parallel_executor = None
+            parallel_futures = {}
+
         steps = plan.get("steps", [])
 
-        for index, step in enumerate(steps):
+        for step in steps:
             tool_name = step.get("tool")
-            executed_tool = False
             is_forced = forced_tool_set is not None and tool_name in forced_tool_set
             checkpoint_entry = (
                 self._find_checkpoint(tool_name, checkpoints)
@@ -179,7 +246,23 @@ class ToolExecutor:
                     "timestamp": self._timestamp(),
                 })
             else:
-                executed_tool = True
+                if tool_name in self.PARALLEL_WAVE_TOOLS:
+                    if parallel_executor is None:
+                        parallel_executor = concurrent.futures.ThreadPoolExecutor(
+                            max_workers=self.MAX_PARALLEL_TOOLS
+                        )
+
+                    append_log({
+                        "tool": tool_name,
+                        "status": "started",
+                        "message": f"Starting {tool_name}.",
+                        "timestamp": self._timestamp(),
+                    })
+                    future = parallel_executor.submit(self._run_tool, idea, tool_name)
+                    parallel_futures[future] = tool_name
+                    continue
+
+                flush_parallel_tools()
                 append_log({
                     "tool": tool_name,
                     "status": "started",
@@ -187,40 +270,10 @@ class ToolExecutor:
                     "timestamp": self._timestamp(),
                 })
                 try:
-                    if tool_name == "search_similar_startups":
-                        output = search_similar_startups(idea)
-
-                    elif tool_name == "search_market_data":
-                        output = search_market_data(idea)
-
-                    elif tool_name == "search_funding_info":
-                        output = search_funding_info(idea)
-
-                    elif tool_name == "generate_monetization_strategy":
-                        output = generate_monetization_strategy(idea)
-
-                    elif tool_name == "generate_customer_profile":
-                        output = generate_customer_profile(idea)
-
-                    elif tool_name == "suggest_tech_stack":
-                        if is_technical_startup(idea):
-                            output = suggest_tech_stack(idea)
-                        else:
-                            output = {}
-
-                    elif tool_name == "generate_swot_analysis":
-                        output = generate_swot_analysis(
-                            idea,
-                            results.get("similar_startups", ""),
-                            results.get("market_data", ""),
-                            results.get("funding_info", ""),
-                            results.get("monetization", ""),
-                            results.get("customer_profile", ""),
-                        )
-                    else:
-                        raise ValueError("Unknown tool")
-
-                    self._append_result(results, tool_name, output)
+                    with state_lock:
+                        swot_input = dict(results)
+                    output = self._run_tool(idea, tool_name, swot_input)
+                    append_result(tool_name, output)
                     update_started_entry(tool_name, {
                         "status": "success",
                         "result": self._serialize_result(tool_name, output),
@@ -231,30 +284,17 @@ class ToolExecutor:
                         ),
                         "completed_at": self._timestamp(),
                     })
-                except Exception as e:
+                except Exception as exc:
                     update_started_entry(tool_name, {
                         "status": "failed",
                         "result": None,
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                        "message": f"{tool_name} failed: {e} - continuing pipeline",
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "message": f"{tool_name} failed: {exc} - continuing pipeline",
                         "completed_at": self._timestamp(),
                     })
 
-            if executed_tool and self._will_execute_later(
-                steps,
-                index + 1,
-                forced_tool_set,
-                checkpoints,
-                use_checkpoints,
-            ):
-                append_log({
-                    "type": "inter_tool_delay",
-                    "after_tool": tool_name,
-                    "delay_seconds": self.INTER_TOOL_GAP_SECONDS,
-                    "timestamp": self._timestamp(),
-                })
-                time.sleep(self.INTER_TOOL_GAP_SECONDS)
+        flush_parallel_tools()
 
         return {
             "results": results,
