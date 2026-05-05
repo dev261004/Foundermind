@@ -200,6 +200,23 @@ export interface AgentAnalysisResults {
   swot?: SWOTAnalysis | string | null
 }
 
+export type ActionTimeframe = "This Week" | "This Month" | "Next 90 Days" | "Next 6 Months"
+export type ActionCategory = "Revenue" | "Defense" | "Growth" | "Product" | "Validation" | "Hiring"
+
+export interface FounderAction {
+  priority: number
+  title: string
+  what: string
+  why: string
+  timeframe: ActionTimeframe
+  category: ActionCategory
+}
+
+export interface FounderActionPlan {
+  horizon: string
+  actions: FounderAction[]
+}
+
 export interface AgentCritique {
   overall_score: number
   section_scores: Record<string, number>
@@ -252,6 +269,7 @@ export interface AgentAnalysisResponse {
   classification_confidence: number
   analysis_confidence: number
   report_summary?: string | null
+  action_plan?: FounderActionPlan | null
   iterations_used?: number
   convergence_reason?: string | null
   iteration_scores?: number[]

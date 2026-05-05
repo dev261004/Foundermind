@@ -51,5 +51,6 @@ class IdeaAnalysis(me.Document):
     tech_stack = me.DictField(default=dict)
     swot = me.DictField(default=dict)
     report_summary = me.StringField()
+    action_plan = me.DictField(default=dict)
 
     created_at = me.DateTimeField(default=datetime.datetime.utcnow)

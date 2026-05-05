@@ -80,7 +80,7 @@ def _update_execution_entry(
     return fallback_entry
 
 
-def _upsert_analysis_snapshot(agent_run: AgentRun, results: dict, report_summary: str | None = None):
+def _upsert_analysis_snapshot(agent_run: AgentRun, results: dict, report_summary: str | None = None, action_plan: dict | None = None):
     analysis = IdeaAnalysis.objects(run_id=str(agent_run.id)).first()
     if not analysis:
         analysis = IdeaAnalysis(
@@ -98,6 +98,8 @@ def _upsert_analysis_snapshot(agent_run: AgentRun, results: dict, report_summary
     analysis.swot = results.get("swot")
     if report_summary is not None:
         analysis.report_summary = report_summary
+    if action_plan is not None:
+        analysis.action_plan = action_plan
     analysis.save()
     return analysis
 
@@ -550,7 +552,7 @@ def run_startup_analysis(self, run_id: str):
                 updates={
                     "status": "completed",
                     "model_used": reporter_result["model_used"],
-                    "message": "Reporter generated the founder summary.",
+                    "message": "Reporter generated the founder action plan.",
                     "completed_at": _timestamp(),
                 },
             )
@@ -593,13 +595,18 @@ def run_startup_analysis(self, run_id: str):
                 "error": f"Reporter failed: {exc}",
             }
 
-        _upsert_analysis_snapshot(agent_run, results, report_summary=reporter_result["summary"])
+        _upsert_analysis_snapshot(
+            agent_run,
+            results,
+            report_summary=reporter_result["action_plan"].get("horizon", ""),
+            action_plan=reporter_result["action_plan"],
+        )
 
         agent_run.reload()
         final_status = "partial" if _tool_failures_present(agent_run) else "completed"
         agent_run.status = final_status
         agent_run.critique = critique
-        agent_run.report_summary = reporter_result["summary"]
+        agent_run.report_summary = reporter_result["action_plan"].get("horizon", "")
         agent_run.idea_type = classification["idea_type"]
         agent_run.classification_confidence = classification["classification_confidence"]
         agent_run.analysis_confidence = analysis_confidence

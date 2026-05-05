@@ -47,7 +47,8 @@ import { CustomerProfile as CustomerProfileSection } from "@/components/results/
 import { CustomerProfileEmpty } from "@/components/results/CustomerProfile/CustomerProfileEmpty";
 import { TechStack as TechStackSection } from "@/components/results/TechStack";
 import { TechStackEmpty } from "@/components/results/TechStack/TechStackEmpty";
-import type { SWOTAnalysis } from "@/types/analysis";
+import FounderActionPlanComponent from "@/components/results/FounderActionPlan";
+import type { SWOTAnalysis, FounderActionPlan as FounderActionPlanType } from "@/types/analysis";
 import type { CustomerProfile as CustomerProfileData } from "@/types/analysis";
 import type { TechStack as TechStackData } from "@/types/analysis";
 import styles from "./IdeaAnalysisPage.module.css";
@@ -277,26 +278,50 @@ function AnalysisContent({
         />
       )}
 
-      {result.report_summary && (
-        <section className={styles.summaryPanel}>
-          <div className={styles.cardHeader}>
-            <div>
-              <h2 className={styles.cardTitle}>Executive Summary</h2>
-              <span className={styles.cardSubtitle}>
-                Reporter synthesis built from the sections the agent could
-                recover.
-              </span>
+      {(() => {
+        const actionPlan = result.action_plan;
+        const hasActions = actionPlan && Array.isArray(actionPlan.actions) && actionPlan.actions.length > 0;
+
+        return (
+          <details className={styles.drawer} open>
+            <summary className={styles.drawerSummary}>
+              <div className={styles.drawerHeading}>
+                <div>
+                  <h2 className={styles.cardTitle}>
+                    Founder Action Plan
+                  </h2>
+                  <span className={styles.cardSubtitle}>
+                    Prioritized next steps synthesized across all analysis
+                    sections.
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span className={styles.statusPill}>
+                    <Sparkles size={14} />
+                    Actions
+                  </span>
+                  <span className={styles.drawerToggle}>
+                    <ChevronDown size={18} />
+                  </span>
+                </div>
+              </div>
+            </summary>
+            <div className={styles.drawerBody}>
+              {hasActions ? (
+                <FounderActionPlanComponent plan={actionPlan as FounderActionPlanType} />
+              ) : (
+                <div className={styles.unavailablePanel}>
+                  <h3 className={styles.unavailableTitle}>Not Available</h3>
+                  <p className={styles.unavailableText}>
+                    Action plan could not be generated. Run a fresh analysis to
+                    generate recommendations.
+                  </p>
+                </div>
+              )}
             </div>
-            <span className="flex items-center justify-center gap-2 min-w-[140px] px-4 py-2 bg-indigo-500/15 text-indigo-400 rounded-xl border border-indigo-500/25 text-xs font-semibold">
-              <Sparkles size={14} />
-              Reporter
-            </span>
-          </div>
-          <div className={styles.narrativePanel}>
-            <ReactMarkdown>{result.report_summary}</ReactMarkdown>
-          </div>
-        </section>
-      )}
+          </details>
+        );
+      })()}
 
       {sectionEntries.map(({ key, title, subtitle, pill, icon }) => {
         const rawValue = result.results[key];
