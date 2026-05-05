@@ -42,6 +42,22 @@ export interface IdeaHistoryResponse {
   count: number
 }
 
+export type IdeaHistoryStatusFilter =
+  | "all"
+  | "active"
+  | "completed"
+  | "partial"
+  | "failed"
+  | "quota_exhausted"
+
+export type IdeaHistorySort = "date-asc" | "date-desc" | "score-asc" | "score-desc"
+
+export interface IdeaHistoryQueryParams {
+  search?: string
+  status?: IdeaHistoryStatusFilter
+  sort?: IdeaHistorySort
+}
+
 export interface DeleteIdeaResponse {
   message: string
   idea_id: string
@@ -54,8 +70,10 @@ export const ideaService = {
     return response.data
   },
 
-  getHistory: async (): Promise<IdeaHistoryResponse> => {
-    const response = await apiClient.get<IdeaHistoryResponse>("/ideas/history/")
+  getHistory: async (params: IdeaHistoryQueryParams = {}): Promise<IdeaHistoryResponse> => {
+    const response = await apiClient.get<IdeaHistoryResponse>("/ideas/history/", {
+      params,
+    })
     return response.data
   },
 

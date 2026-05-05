@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast, Toaster } from 'sonner';
@@ -17,9 +17,18 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ideaService, IdeaHistoryItem } from "@/app/services/ideaService";
+import {
+  ideaService,
+  IdeaHistoryItem,
+  IdeaHistorySort,
+  IdeaHistoryStatusFilter,
+} from "@/app/services/ideaService";
 import { ApiError } from "@/lib/api/types";
 import { useAuthStore } from "@/store/useAuthStore";
+
+const DEFAULT_STATUS_FILTER: IdeaHistoryStatusFilter = "all"
+const DEFAULT_SORT_BY: IdeaHistorySort = "date-desc"
+const MIN_SEARCH_CHARACTERS = 3
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -34,54 +43,146 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 export default function DashboardIdeasPage() {
   const accessToken = useAuthStore((state) => state.accessToken);
+  const hasLoadedHistoryRef = useRef(false);
   const [hasMounted, setHasMounted] = useState(false);
   const [history, setHistory] = useState<IdeaHistoryItem[]>([]);
+  const [baseHistory, setBaseHistory] = useState<IdeaHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isUpdatingHistory, setIsUpdatingHistory] = useState(false);
   const [deletingIdeaId, setDeletingIdeaId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("date-desc");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<IdeaHistoryStatusFilter>(DEFAULT_STATUS_FILTER);
+  const [sortBy, setSortBy] = useState<IdeaHistorySort>(DEFAULT_SORT_BY);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
   
   const [ideaToDelete, setIdeaToDelete] = useState<IdeaHistoryItem | null>(null);
   const [ideaToView, setIdeaToView] = useState<IdeaHistoryItem | null>(null);
+  const trimmedQuery = query.trim();
+  const showMinSearchHint = trimmedQuery.length > 0 && trimmedQuery.length < MIN_SEARCH_CHARACTERS;
+  const isSearchReady = trimmedQuery.length >= MIN_SEARCH_CHARACTERS;
 
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
+  const fetchBaseHistory = useCallback(
+    async ({ manualRefresh = false }: { manualRefresh?: boolean } = {}) => {
+      if (!accessToken) return;
+
+      const shouldShowInitialLoader = !hasLoadedHistoryRef.current && !manualRefresh
+
+      if (manualRefresh) {
+        setIsRefreshing(true);
+      } else if (shouldShowInitialLoader) {
+        setIsLoading(true);
+      } else {
+        setIsUpdatingHistory(true);
+      }
+
+      setError(null);
+
+      try {
+        const data = await ideaService.getHistory({
+          status: statusFilter,
+          sort: sortBy,
+        });
+        setBaseHistory(data.history);
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, "Unable to load idea history right now."));
+      } finally {
+        if (manualRefresh) {
+          setIsRefreshing(false);
+        } else if (shouldShowInitialLoader) {
+          setIsLoading(false);
+          hasLoadedHistoryRef.current = true
+        } else {
+          setIsUpdatingHistory(false);
+        }
+      }
+    },
+    [accessToken, sortBy, statusFilter]
+  )
+
   useEffect(() => {
     if (!hasMounted) return;
     if (!accessToken) {
+      hasLoadedHistoryRef.current = false;
       setHistory([]);
+      setBaseHistory([]);
       setError(null);
       setIsLoading(false);
       return;
     }
 
+    void fetchBaseHistory();
+  }, [accessToken, fetchBaseHistory, hasMounted]);
+
+  useEffect(() => {
+    if (trimmedQuery.length === 0 || trimmedQuery.length < MIN_SEARCH_CHARACTERS) {
+      setHistory(baseHistory);
+    }
+  }, [baseHistory, trimmedQuery]);
+
+  useEffect(() => {
+    if (!hasMounted) return;
+
+    if (trimmedQuery.length === 0 || trimmedQuery.length < MIN_SEARCH_CHARACTERS) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(trimmedQuery);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [hasMounted, trimmedQuery]);
+
+  useEffect(() => {
+    if (!hasMounted || !accessToken || debouncedSearchQuery.length < MIN_SEARCH_CHARACTERS) {
+      return;
+    }
+
+    if (debouncedSearchQuery !== trimmedQuery) {
+      return;
+    }
+
     let cancelled = false;
-    const fetchHistory = async () => {
-      setIsLoading(true);
+
+    const searchHistory = async () => {
+      setIsUpdatingHistory(true);
       setError(null);
+
       try {
-        const data = await ideaService.getHistory();
-        if (!cancelled) setHistory(data.history);
+        const data = await ideaService.getHistory({
+          search: debouncedSearchQuery,
+          status: statusFilter,
+          sort: sortBy,
+        });
+        if (!cancelled) {
+          setHistory(data.history);
+        }
       } catch (err: unknown) {
         if (!cancelled) {
-          setError(getErrorMessage(err, "Unable to load idea history right now."));
+          setError(getErrorMessage(err, "Unable to search idea history right now."));
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsUpdatingHistory(false);
+        }
       }
     };
 
-    void fetchHistory();
-    return () => { cancelled = true; };
-  }, [accessToken, hasMounted]);
+    void searchHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, debouncedSearchQuery, hasMounted, sortBy, statusFilter, trimmedQuery]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -95,15 +196,24 @@ export default function DashboardIdeasPage() {
 
   const handleRefresh = async () => {
     if (!accessToken) return;
-    setIsRefreshing(true);
+
+    await fetchBaseHistory({ manualRefresh: true });
+
+    if (!isSearchReady) {
+      return;
+    }
+
     setError(null);
+
     try {
-      const data = await ideaService.getHistory();
+      const data = await ideaService.getHistory({
+        search: trimmedQuery,
+        status: statusFilter,
+        sort: sortBy,
+      });
       setHistory(data.history);
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Unable to refresh idea history right now."));
-    } finally {
-      setIsRefreshing(false);
     }
   };
 
@@ -118,6 +228,7 @@ export default function DashboardIdeasPage() {
     try {
       await ideaService.deleteIdea(deletingIdea.idea_id);
       setHistory((prev) => prev.filter((idea) => idea.idea_id !== deletingIdea.idea_id));
+      setBaseHistory((prev) => prev.filter((idea) => idea.idea_id !== deletingIdea.idea_id));
       if (ideaToView?.idea_id === deletingIdea.idea_id) {
         setIdeaToView(null);
       }
@@ -145,36 +256,6 @@ export default function DashboardIdeasPage() {
     const sum = confidentIdeas.reduce((acc, idea) => acc + (idea.analysis_confidence || 0), 0);
     return Math.round((sum / confidentIdeas.length) * 100) + "%";
   })();
-
-  const filteredHistory = history.filter((idea) => {
-    if (!query.trim() && statusFilter === "all") return true;
-    
-    const matchesSearch = (() => {
-      if (!query.trim()) return true;
-      const haystack = [idea.title, idea.description, idea.idea_type, idea.status]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(query.toLowerCase());
-    })();
-
-    const matchesStatus = statusFilter === "all" || idea.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const sortedHistory = [...filteredHistory].sort((a, b) => {
-    if (sortBy.startsWith("date")) {
-      const dateA = new Date(a.analyzed_at || a.created_at || 0).getTime();
-      const dateB = new Date(b.analyzed_at || b.created_at || 0).getTime();
-      return sortBy === "date-desc" ? dateB - dateA : dateA - dateB;
-    } else if (sortBy.startsWith("score")) {
-      const scoreA = typeof a.overall_score === 'number' ? a.overall_score : -1;
-      const scoreB = typeof b.overall_score === 'number' ? b.overall_score : -1;
-      return sortBy === "score-desc" ? scoreB - scoreA : scoreA - scoreB;
-    }
-    return 0;
-  });
 
   if (!hasMounted) {
     return <HistorySkeleton />;
@@ -266,16 +347,28 @@ export default function DashboardIdeasPage() {
         <section className="p-4 sm:p-5 rounded-3xl bg-[#12141D] border border-white/10">
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
             <div className="relative flex-1 w-full group">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500 z-20">
                 <Search className="h-4 w-4" />
               </div>
               <input
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search by title, preview, type, or tags..."
-                className="w-full bg-[#1A1A1A] border border-white/10 rounded-full py-2.5 pl-10 pr-4 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 transition-all font-medium"
+                placeholder="Search by title, preview, type, or tags (min 3 chars)..."
+                className="w-full bg-[#1A1A1A] border border-white/10 rounded-full py-2.5 pl-10 pr-4 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 transition-all font-medium relative z-10"
               />
+              <AnimatePresence>
+                {showMinSearchHint && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -5 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -5 }} 
+                    className="absolute top-full left-4 mt-1 text-[11px] font-bold text-amber-500/90 tracking-wide z-10"
+                  >
+                    Please enter at least {MIN_SEARCH_CHARACTERS} characters to search
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="relative w-full sm:w-auto shrink-0" ref={filterRef}>
@@ -284,7 +377,7 @@ export default function DashboardIdeasPage() {
                 onClick={() => setIsFiltersOpen(!isFiltersOpen)}
                 className={cn(
                   "w-full sm:w-auto flex items-center justify-between sm:justify-center gap-2 px-4 py-2.5 border rounded-full text-sm font-semibold transition-all shrink-0 cursor-pointer",
-                  isFiltersOpen || statusFilter !== 'all' || sortBy !== 'date-desc'
+                  isFiltersOpen || statusFilter !== DEFAULT_STATUS_FILTER || sortBy !== DEFAULT_SORT_BY
                     ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
                     : "bg-[#1A1A1A] border-white/10 text-gray-300 hover:bg-white/5"
                 )}
@@ -292,7 +385,7 @@ export default function DashboardIdeasPage() {
                 <div className="flex items-center gap-2">
                   <SlidersHorizontal className="w-4 h-4" />
                   <span>Filter & Sort</span>
-                  {(statusFilter !== 'all' || sortBy !== 'date-desc') && (
+                  {(statusFilter !== DEFAULT_STATUS_FILTER || sortBy !== DEFAULT_SORT_BY) && (
                     <span className="w-2 h-2 rounded-full bg-indigo-500" />
                   )}
                 </div>
@@ -311,10 +404,10 @@ export default function DashboardIdeasPage() {
                       <div className="space-y-3">
                         <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Status</label>
                         <div className="grid grid-cols-2 gap-2 text-left">
-                          {['all', 'completed', 'active', 'partial', 'failed'].map((s) => (
+                          {['all', 'completed', 'active', 'partial', 'failed', 'quota_exhausted'].map((s) => (
                             <button
                               key={s}
-                              onClick={() => setStatusFilter(s)}
+                              onClick={() => setStatusFilter(s as IdeaHistoryStatusFilter)}
                               className={cn(
                                 "px-3 py-2 rounded-xl text-sm font-medium transition-colors border text-left",
                                 statusFilter === s
@@ -322,7 +415,9 @@ export default function DashboardIdeasPage() {
                                   : "bg-[#0B0C10] border-white/5 text-gray-400 hover:text-white hover:border-white/20 hover:bg-white/5"
                               )}
                             >
-                              {s === 'all' ? 'All Status' : s.charAt(0).toUpperCase() + s.slice(1)}
+                              {s === 'all'
+                                ? 'All Status'
+                                : s.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())}
                             </button>
                           ))}
                         </div>
@@ -332,14 +427,14 @@ export default function DashboardIdeasPage() {
                         <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Sort By</label>
                         <div className="grid grid-cols-1 gap-2">
                           {[
-                            { value: 'date-desc', label: 'Newest First' },
                             { value: 'date-asc', label: 'Oldest First' },
+                            { value: 'date-desc', label: 'Newest First' },
                             { value: 'score-desc', label: 'Highest Score' },
                             { value: 'score-asc', label: 'Lowest Score' },
                           ].map((s) => (
                             <button
                               key={s.value}
-                              onClick={() => setSortBy(s.value)}
+                              onClick={() => setSortBy(s.value as IdeaHistorySort)}
                               className={cn(
                                 "flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors border",
                                 sortBy === s.value
@@ -359,14 +454,14 @@ export default function DashboardIdeasPage() {
               </AnimatePresence>
             </div>
 
-            {(query || statusFilter !== 'all' || sortBy !== 'date-desc') && (
+            {(query || statusFilter !== DEFAULT_STATUS_FILTER || sortBy !== DEFAULT_SORT_BY) && (
               <button
                 type="button"
                 title="Clear Filters"
                 onClick={() => {
                   setQuery('');
-                  setStatusFilter('all');
-                  setSortBy('date-desc');
+                  setStatusFilter(DEFAULT_STATUS_FILTER);
+                  setSortBy(DEFAULT_SORT_BY);
                 }}
                 className="flex items-center justify-center p-2.5 sm:px-4 sm:py-2.5 border border-white/10 rounded-full bg-[#1A1A1A] hover:bg-white/10 text-sm font-semibold text-gray-300 transition-all shrink-0 cursor-pointer"
               >
@@ -402,11 +497,11 @@ export default function DashboardIdeasPage() {
         ) : (
           <section className={cn(
             "grid gap-5",
-            filteredHistory.length > 0 ? "xl:grid-cols-2" : "grid-cols-1"
+            history.length > 0 ? "xl:grid-cols-2" : "grid-cols-1"
           )}>
             <AnimatePresence mode="popLayout">
-              {sortedHistory.length > 0 ? (
-                sortedHistory.map(idea => (
+              {history.length > 0 ? (
+                history.map(idea => (
                   <motion.div
                     key={idea.idea_id}
                     layout
@@ -441,12 +536,12 @@ export default function DashboardIdeasPage() {
                       <Lightbulb className="w-4 h-4" />
                       <span>Analyze New Idea</span>
                     </Link>
-                    {(query || statusFilter !== 'all' || sortBy !== 'date-desc') && (
+                    {(query || statusFilter !== DEFAULT_STATUS_FILTER || sortBy !== DEFAULT_SORT_BY) && (
                       <button
                         onClick={() => {
                           setQuery('');
-                          setStatusFilter('all');
-                          setSortBy('date-desc');
+                          setStatusFilter(DEFAULT_STATUS_FILTER);
+                          setSortBy(DEFAULT_SORT_BY);
                         }}
                         className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white text-sm font-bold rounded-full transition-colors cursor-pointer"
                       >
