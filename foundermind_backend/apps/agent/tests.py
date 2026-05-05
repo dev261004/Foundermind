@@ -4,9 +4,9 @@ from unittest.mock import patch
 
 from celery.exceptions import SoftTimeLimitExceeded
 
+from apps.agent import tasks
 from apps.agent.executor import ToolExecutor
 from apps.agent.orchestrator import StartupOrchestrator
-from apps.agent import tasks
 
 
 class FakeQuerySet:
@@ -18,14 +18,29 @@ class FakeQuerySet:
 
 
 class FakeAgentRun:
-    def __init__(self):
+    def __init__(self, *, execution_log=None, pipeline_state=None, status="pending"):
         self.id = "run-1"
         self.idea_id = "idea-1"
-        self.execution_log = []
+        self.execution_log = execution_log or []
+        self.pipeline_state = pipeline_state or {}
         self.models_used = {}
-        self.status = "pending"
+        self.status = status
         self.critique = None
+        self.report_summary = None
+        self.idea_type = None
+        self.classification_confidence = None
+        self.analysis_confidence = None
+        self.overall_score = None
+        self.weighted_score = None
+        self.iterations_used = None
+        self.convergence_reason = None
+        self.iteration_scores = []
         self.original_description = ""
+        self.refined_description = ""
+        self.quality_score = None
+        self.quality_missing_signals = []
+        self.clarification_questions = []
+        self.clarification_answers = {}
 
     def reload(self):
         return self
@@ -35,7 +50,7 @@ class FakeAgentRun:
 
 
 class FakeIdea:
-    def __init__(self, title="Idea", description="Test description for timeout handling."):
+    def __init__(self, title="Idea", description="Test description for staged analysis."):
         self.title = title
         self.description = description
 
@@ -57,6 +72,7 @@ class ToolExecutorTests(unittest.TestCase):
             def _inner(_idea):
                 time.sleep(0.2)
                 return label
+
             return _inner
 
         with (
@@ -89,6 +105,7 @@ class ToolExecutorTests(unittest.TestCase):
                 time.sleep(0.15)
                 completion_times[label] = time.monotonic()
                 return label
+
             return _inner
 
         swot_started_at = {}
@@ -212,30 +229,314 @@ class StartupOrchestratorRerunTests(unittest.TestCase):
 
 
 class StartupAnalysisTaskTests(unittest.TestCase):
-    def test_task_timeout_limits_match_constants(self):
-        self.assertEqual(
-            tasks.run_startup_analysis.soft_time_limit,
-            tasks.STARTUP_ANALYSIS_SOFT_TIMEOUT_SECONDS,
-        )
-        self.assertEqual(
-            tasks.run_startup_analysis.time_limit,
-            tasks.STARTUP_ANALYSIS_HARD_TIMEOUT_SECONDS,
-        )
+    def test_dispatcher_queues_prepare_stage_in_async_mode(self):
+        fake_run = FakeAgentRun(execution_log=[{"tool": "search_market_data", "status": "success"}])
 
-    def test_timeout_message_uses_configured_soft_limit(self):
+        with (
+            patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.tasks._should_run_inline", return_value=False),
+            patch("apps.agent.tasks.prepare_analysis_stage.delay") as prepare_delay,
+        ):
+            result = tasks.run_startup_analysis.run(str(fake_run.id))
+
+        prepare_delay.assert_called_once_with(str(fake_run.id))
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(fake_run.status, "running")
+        self.assertEqual(fake_run.pipeline_state, {})
+
+    def test_dispatcher_runs_inline_stage_helpers_in_direct_mode(self):
+        fake_run = FakeAgentRun()
+
+        with (
+            patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.tasks._should_run_inline", return_value=True),
+            patch("apps.agent.tasks._run_prepare_stage", return_value={"status": "completed"}) as run_prepare_stage,
+        ):
+            result = tasks.run_startup_analysis.run(str(fake_run.id))
+
+        run_prepare_stage.assert_called_once_with(str(fake_run.id), inline=True)
+        self.assertEqual(result["status"], "completed")
+
+    def test_prepare_stage_short_circuits_to_awaiting_clarification(self):
         fake_run = FakeAgentRun()
         fake_idea = FakeIdea()
 
         with (
             patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
             patch("apps.agent.tasks.Idea.objects", return_value=FakeQuerySet(fake_idea)),
-            patch("apps.agent.tasks.check_idea_quality", side_effect=SoftTimeLimitExceeded()),
+            patch(
+                "apps.agent.tasks.check_idea_quality",
+                return_value={
+                    "total_score": 1,
+                    "missing_signals": ["customer", "business model"],
+                    "suggested_questions": ["Who is the customer?"],
+                },
+            ),
+            patch("apps.agent.tasks.refine_description") as refine_description,
         ):
-            result = tasks.run_startup_analysis.run(str(fake_run.id))
+            result = tasks._run_prepare_stage(str(fake_run.id), inline=True)
 
-        self.assertEqual(result["status"], "failed")
-        self.assertEqual(result["error"], "Analysis timed out after 10 minutes")
-        self.assertEqual(fake_run.status, "failed")
+        refine_description.assert_not_called()
+        self.assertEqual(result["status"], "awaiting_clarification")
+        self.assertEqual(fake_run.status, "awaiting_clarification")
+        self.assertEqual(fake_run.clarification_questions, ["Who is the customer?"])
+        self.assertEqual(fake_run.quality_missing_signals, ["customer", "business model"])
+
+    def test_prepare_stage_persists_pipeline_state_and_queues_execute_stage(self):
+        fake_run = FakeAgentRun()
+        fake_idea = FakeIdea(title="Chaidesk", description="Short desc")
+        plan = {"steps": [{"tool": "search_market_data"}]}
+        classification = {
+            "idea_type": "tech",
+            "classification_confidence": 0.82,
+            "classification_source": "llm",
+            "weights": {"market_data": 1.0},
+            "model_used": "critic-model",
+        }
+
+        with (
+            patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.tasks.Idea.objects", return_value=FakeQuerySet(fake_idea)),
+            patch(
+                "apps.agent.tasks.check_idea_quality",
+                return_value={"total_score": 4, "missing_signals": []},
+            ),
+            patch("apps.agent.tasks.refine_description", return_value="Refined desc"),
+            patch("apps.agent.tasks.StartupOrchestrator.classify_idea", return_value=classification),
+            patch("apps.agent.tasks.PlannerAgent.create_plan", return_value=(plan, "planner-model")),
+            patch("apps.agent.tasks._enqueue_stage", return_value={"status": "running"}) as enqueue_stage,
+        ):
+            result = tasks._run_prepare_stage(str(fake_run.id), inline=False)
+
+        enqueue_stage.assert_called_once_with(
+            tasks.execute_analysis_stage,
+            str(fake_run.id),
+            iteration=0,
+            rerun_tools=None,
+        )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(fake_run.pipeline_state["plan"], plan)
+        self.assertEqual(fake_run.pipeline_state["classification"], classification)
+        self.assertEqual(fake_run.pipeline_state["idea_text"], "Chaidesk\n\nRefined desc")
+
+    def test_execute_stage_persists_results_and_queues_review_stage(self):
+        fake_run = FakeAgentRun(
+            pipeline_state={
+                "idea_text": "Idea",
+                "plan": {"steps": [{"tool": "search_market_data"}]},
+                "classification": {},
+            }
+        )
+        execution_data = {"results": {"market_data": "Market summary"}}
+        enriched_results = {
+            "market_data": "Market summary",
+            "market_quantitative_model": {"score": 8},
+        }
+
+        with (
+            patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.tasks.ToolExecutor.execute_with_plan", return_value=execution_data),
+            patch("apps.agent.tasks.StartupOrchestrator.enrich_results", return_value=enriched_results),
+            patch("apps.agent.tasks._upsert_analysis_snapshot") as upsert_snapshot,
+            patch("apps.agent.tasks._queue_or_run_review", return_value={"status": "running"}) as queue_review,
+        ):
+            result = tasks._run_execute_stage(str(fake_run.id), iteration=0, inline=False)
+
+        upsert_snapshot.assert_called_once_with(fake_run, enriched_results)
+        queue_review.assert_called_once_with(str(fake_run.id), iteration=0, inline=False)
+        self.assertEqual(result["status"], "running")
+
+    def test_review_stage_queues_next_execute_iteration_when_rerun_is_needed(self):
+        fake_run = FakeAgentRun(
+            pipeline_state={
+                "idea_text": "Idea",
+                "plan": {"steps": [{"tool": "search_market_data"}]},
+                "classification": {
+                    "idea_type": "general",
+                    "classification_confidence": 0.7,
+                    "weights": {"market_data": 1.0},
+                },
+            }
+        )
+        critique = {
+            "overall_score": 5,
+            "section_scores": {"market_data": 5},
+            "issues_found": ["Need more market depth"],
+            "rerun_tools": [],
+            "needs_rerun": True,
+        }
+
+        with (
+            patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.tasks._restore_enriched_results", return_value={"market_data": "Market"}),
+            patch("apps.agent.tasks.StartupOrchestrator.review_results", return_value=(critique, "critic-model")),
+            patch("apps.agent.tasks._queue_or_run_execute", return_value={"status": "running"}) as queue_execute,
+        ):
+            result = tasks._run_review_stage(str(fake_run.id), iteration=0, inline=False)
+
+        queue_execute.assert_called_once_with(
+            str(fake_run.id),
+            iteration=1,
+            rerun_tools=["search_market_data", "generate_swot_analysis"],
+            inline=False,
+        )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(fake_run.iteration_scores, [5.0])
+        self.assertEqual(fake_run.iterations_used, 0)
+        self.assertTrue(
+            any(entry.get("type") == "self_healing_cycle" for entry in fake_run.execution_log)
+        )
+
+    def test_review_stage_queues_report_stage_when_converged(self):
+        fake_run = FakeAgentRun(
+            pipeline_state={
+                "idea_text": "Idea",
+                "plan": {"steps": [{"tool": "search_market_data"}]},
+                "classification": {
+                    "idea_type": "general",
+                    "classification_confidence": 0.7,
+                    "weights": {"market_data": 1.0},
+                },
+            }
+        )
+        critique = {
+            "overall_score": 8,
+            "section_scores": {"market_data": 8},
+            "issues_found": [],
+            "rerun_tools": [],
+            "needs_rerun": False,
+        }
+
+        with (
+            patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.tasks._restore_enriched_results", return_value={"market_data": "Market"}),
+            patch("apps.agent.tasks.StartupOrchestrator.review_results", return_value=(critique, "critic-model")),
+            patch("apps.agent.tasks._queue_or_run_report", return_value={"status": "running"}) as queue_report,
+        ):
+            result = tasks._run_review_stage(str(fake_run.id), iteration=0, inline=False)
+
+        queue_report.assert_called_once_with(str(fake_run.id), inline=False)
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(fake_run.convergence_reason, "All sections above threshold")
+        self.assertTrue(
+            any(entry.get("type") == "convergence" for entry in fake_run.execution_log)
+        )
+
+    def test_report_stage_finalizes_completed_run_and_persists_action_plan(self):
+        fake_run = FakeAgentRun(
+            execution_log=[
+                {
+                    "tool": "search_market_data",
+                    "status": "success",
+                    "result": "Market summary",
+                }
+            ],
+            pipeline_state={
+                "idea_text": "Idea",
+                "classification": {
+                    "idea_type": "general",
+                    "classification_confidence": 0.7,
+                },
+            },
+        )
+        reporter_result = {
+            "action_plan": {"horizon": "Act now", "actions": []},
+            "model_used": "reporter-model",
+        }
+
+        with (
+            patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.tasks._restore_enriched_results", return_value={"market_data": "Market"}),
+            patch("apps.agent.tasks.ReporterAgent.generate_report", return_value=reporter_result),
+            patch("apps.agent.tasks._upsert_analysis_snapshot") as upsert_snapshot,
+        ):
+            result = tasks._run_report_stage(str(fake_run.id))
+
+        upsert_snapshot.assert_called_once_with(
+            fake_run,
+            {"market_data": "Market"},
+            report_summary="Act now",
+            action_plan={"horizon": "Act now", "actions": []},
+        )
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(fake_run.status, "completed")
+        self.assertEqual(fake_run.report_summary, "Act now")
+        self.assertEqual(fake_run.models_used["reporter"], "reporter-model")
+
+    def test_stage_timeout_limits_match_constants(self):
+        self.assertEqual(
+            tasks.prepare_analysis_stage.soft_time_limit,
+            tasks.PREPARE_ANALYSIS_SOFT_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            tasks.prepare_analysis_stage.time_limit,
+            tasks.PREPARE_ANALYSIS_HARD_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            tasks.execute_analysis_stage.soft_time_limit,
+            tasks.EXECUTE_ANALYSIS_SOFT_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            tasks.execute_analysis_stage.time_limit,
+            tasks.EXECUTE_ANALYSIS_HARD_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            tasks.review_analysis_stage.soft_time_limit,
+            tasks.REVIEW_ANALYSIS_SOFT_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            tasks.review_analysis_stage.time_limit,
+            tasks.REVIEW_ANALYSIS_HARD_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            tasks.report_analysis_stage.soft_time_limit,
+            tasks.REPORT_ANALYSIS_SOFT_TIMEOUT_SECONDS,
+        )
+        self.assertEqual(
+            tasks.report_analysis_stage.time_limit,
+            tasks.REPORT_ANALYSIS_HARD_TIMEOUT_SECONDS,
+        )
+
+    def test_stage_timeout_messages_mark_run_failed(self):
+        fake_run = FakeAgentRun()
+        timeout_cases = [
+            (
+                tasks.prepare_analysis_stage,
+                "apps.agent.tasks._run_prepare_stage",
+                "Prepare analysis stage timed out after 4 minutes",
+            ),
+            (
+                tasks.execute_analysis_stage,
+                "apps.agent.tasks._run_execute_stage",
+                "Execute analysis stage timed out after 7 minutes",
+            ),
+            (
+                tasks.review_analysis_stage,
+                "apps.agent.tasks._run_review_stage",
+                "Review analysis stage timed out after 4 minutes",
+            ),
+            (
+                tasks.report_analysis_stage,
+                "apps.agent.tasks._run_report_stage",
+                "Report analysis stage timed out after 4 minutes",
+            ),
+        ]
+
+        for task_obj, helper_path, expected_error in timeout_cases:
+            with self.subTest(task=task_obj.name):
+                fake_run.execution_log = []
+                fake_run.status = "running"
+                fake_run.critique = None
+                with (
+                    patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+                    patch(helper_path, side_effect=SoftTimeLimitExceeded()),
+                ):
+                    result = task_obj.run(str(fake_run.id))
+
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["error"], expected_error)
+                self.assertEqual(fake_run.status, "failed")
+                self.assertEqual(fake_run.critique["error"], expected_error)
 
 
 if __name__ == "__main__":

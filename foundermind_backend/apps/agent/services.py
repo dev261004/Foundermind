@@ -143,8 +143,15 @@ class StartupAnalysisService:
             agent_run.execution_log or []
         )
 
+        idea_title = None
+        if agent_run.idea_id:
+            idea = Idea.objects(id=agent_run.idea_id).only("title").first()
+            if idea:
+                idea_title = idea.title
+
         return {
             "idea_id": agent_run.idea_id,
+            "idea_title": idea_title,
             "agent_run_id": str(agent_run.id),
             "idea_type": agent_run.idea_type or "general",
             "classification_confidence": agent_run.classification_confidence or 0,

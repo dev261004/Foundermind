@@ -264,6 +264,7 @@ export interface AgentExecutionLogEntry {
 
 export interface AgentAnalysisResponse {
   idea_id?: string
+  idea_title?: string
   agent_run_id?: string
   idea_type: string
   classification_confidence: number

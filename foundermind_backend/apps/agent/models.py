@@ -5,6 +5,7 @@ import datetime
 class AgentRun(me.Document):
     idea_id = me.StringField(required=True)
     execution_log = me.ListField(me.DictField(), default=list)
+    pipeline_state = me.DictField(default=dict)
     models_used = me.DictField(default=dict)
     status = me.StringField(
         choices=["pending", "running", "completed", "partial", "failed", "quota_exhausted", "awaiting_clarification"],

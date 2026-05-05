@@ -141,7 +141,7 @@ export default function IdeaAnalysisPage({ ideaId }: Props) {
     }
   }, [activeIdeaId, ideaId, startAnalysis, status]);
 
-  const runTitle = ideaInput?.trim() || `Idea ${ideaId.slice(0, 8)}`;
+  const runTitle = result?.idea_title || ideaInput?.trim() || `Idea ${ideaId.slice(0, 8)}`;
   const ideaType = result ? capitalize(result.idea_type) : "Pending";
   const runStatusLabel = formatRunStatus(status);
 

@@ -5,6 +5,10 @@ import { AgentAnalysisResponse } from "@/types/analysis"
 type RunStatus = "idle" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification"
 
 const RESULT_READY_STATUSES = new Set<RunStatus>(["completed", "partial", "quota_exhausted"])
+const POLL_INTERVAL_MS = 1500
+const ANALYSIS_POLL_WINDOW_MS = 20 * 60 * 1000
+const MAX_ANALYSIS_POLL_ATTEMPTS = Math.ceil(ANALYSIS_POLL_WINDOW_MS / POLL_INTERVAL_MS)
+const ANALYSIS_TIMEOUT_MESSAGE = "Analysis timed out after 20 minutes. Please try again."
 
 function areExecutionLogsEqual(
   current: AgentAnalysisResponse["execution_log"],
@@ -151,7 +155,7 @@ export const useRunStore = create<RunState>((set) => ({
 
       set({ activeRunId: agent_run_id })
 
-      for (let attempt = 0; attempt < 180; attempt += 1) {
+      for (let attempt = 0; attempt < MAX_ANALYSIS_POLL_ATTEMPTS; attempt += 1) {
         const poll = await agentService.getAnalysisStatus(agent_run_id)
 
         // Handle awaiting_clarification during polling
@@ -212,10 +216,10 @@ export const useRunStore = create<RunState>((set) => ({
           return
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
       }
 
-      throw new Error("Analysis timed out. Please try again.")
+      throw new Error(ANALYSIS_TIMEOUT_MESSAGE)
     } catch (err: unknown) {
       const message =
         (err as { message?: string })?.message ?? "Analysis failed. Please try again."
@@ -253,7 +257,7 @@ export const useRunStore = create<RunState>((set) => ({
         await new Promise((resolve) => setTimeout(resolve, 500))
 
         // Poll for status directly since the run is already in progress
-        for (let attempt = 0; attempt < 180; attempt += 1) {
+        for (let attempt = 0; attempt < MAX_ANALYSIS_POLL_ATTEMPTS; attempt += 1) {
           const poll = await agentService.getAnalysisStatus(runId)
 
           if (poll.status === "awaiting_clarification") {
@@ -313,8 +317,10 @@ export const useRunStore = create<RunState>((set) => ({
             return
           }
 
-          await new Promise((resolve) => setTimeout(resolve, 1500))
+          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
         }
+
+        throw new Error(ANALYSIS_TIMEOUT_MESSAGE)
       }
     } catch (err: unknown) {
       const message =
