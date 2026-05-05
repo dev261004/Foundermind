@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useState, useEffect } from "react"
+import { FormEvent, useState } from "react"
 import { motion } from "framer-motion"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuthStore } from "@/store/useAuthStore"
@@ -9,25 +9,22 @@ export default function LoginPage() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const { login, register, isLoading, error, clearError } = useAuthStore()
+    const initialMode = searchParams.get("mode") === "register" ? "register" : "login"
 
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
-    const [mode, setMode] = useState<"login" | "register">("login")
-
-    useEffect(() => {
-        const modeParam = searchParams.get("mode")
-        if (modeParam === "register") {
-            setMode("register")
-        } else if (modeParam === "login") {
-            setMode("login")
-        }
-    }, [searchParams])
+    const [mode, setMode] = useState<"login" | "register">(initialMode)
 
     const isRegisterMode = mode === "register"
 
     const switchMode = (nextMode: "login" | "register") => {
         clearError()
         setMode(nextMode)
+    }
+
+    const handleForgotPassword = () => {
+        if (!email.trim()) return
+        router.push(`/forgot-password?email=${encodeURIComponent(email.trim())}`)
     }
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -100,7 +97,6 @@ export default function LoginPage() {
 
                     <div className="input-group">
                         <label htmlFor="password">Password</label>
-
                         <input
                             id="password"
                             type="password"
@@ -131,6 +127,17 @@ export default function LoginPage() {
                                 ? "Register"
                                 : "Login"}
                     </button>
+
+                    {!isRegisterMode && (
+                        <button
+                            type="button"
+                            className="auth-text-link auth-text-link-block"
+                            onClick={handleForgotPassword}
+                            disabled={isLoading || !email.trim()}
+                        >
+                            Forgot password -&gt;
+                        </button>
+                    )}
                 </form>
 
                 <p className="auth-switch-text">
