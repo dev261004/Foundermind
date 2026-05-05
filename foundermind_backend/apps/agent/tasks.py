@@ -2,12 +2,14 @@ import datetime
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
+from django.conf import settings
 
 from apps.agent.models import AgentRun, IdeaAnalysis
 from apps.agent.orchestrator import StartupOrchestrator
 from apps.agent.planner import PlannerAgent
 from apps.agent.reporter import ReporterAgent
 from apps.agent.executor import ToolExecutor
+from apps.agent.idea_quality import check_idea_quality, refine_description
 from apps.analytics.drift_detector import DriftDetector
 from apps.analytics.tool_drift_detector import ToolDriftDetector
 from apps.ideas.models import Idea
@@ -166,7 +168,7 @@ def _tool_failures_present(agent_run: AgentRun) -> bool:
     return any(status == "failed" for status in latest_tool_status.values())
 
 
-@shared_task(bind=True, soft_time_limit=300, time_limit=360)
+@shared_task(bind=True, soft_time_limit=480, time_limit=540)
 def run_startup_analysis(self, run_id: str):
     agent_run = AgentRun.objects(id=run_id).first()
     if not agent_run:
@@ -192,9 +194,20 @@ def run_startup_analysis(self, run_id: str):
     idea_obj = Idea.objects(id=agent_run.idea_id).first()
     if not idea_obj:
         raise ValueError("Idea not found")
-    idea_text = idea_obj.title
-    if getattr(idea_obj, "description", None) and idea_obj.description.strip():
-        idea_text = f"{idea_obj.title}\n\n{idea_obj.description}"
+
+    # Build idea_text with description, truncated to AI max
+    title = idea_obj.title
+    raw_description = getattr(idea_obj, "description", None) or ""
+    raw_description = raw_description.strip()
+    truncated_desc = raw_description[:settings.IDEA_DESCRIPTION_AI_MAX_CHARS] if raw_description else ""
+    if truncated_desc:
+        idea_text = f"{title}\n\n{truncated_desc}"
+    else:
+        idea_text = title
+
+    # Store original description
+    agent_run.original_description = raw_description
+    agent_run.save()
 
     orchestrator = StartupOrchestrator()
     planner = PlannerAgent()
@@ -202,6 +215,92 @@ def run_startup_analysis(self, run_id: str):
     reporter = ReporterAgent()
 
     try:
+        # --- Quality check (before classification) ---
+        persist_log_entry({
+            "agent": "quality_check",
+            "status": "started",
+            "message": "Evaluating description quality before analysis.",
+            "timestamp": _timestamp(),
+        })
+
+        quality_result = check_idea_quality(title, truncated_desc)
+        quality_score = quality_result.get("total_score", 2)
+
+        if quality_score < settings.IDEA_QUALITY_MIN_SCORE:
+            # Description too vague — ask user for clarification
+            questions = quality_result.get("suggested_questions", [])
+            missing = quality_result.get("missing_signals", [])
+
+            update_log_entry(
+                agent_name="quality_check",
+                updates={
+                    "type": "quality_check",
+                    "status": "awaiting_clarification",
+                    "quality_score": quality_score,
+                    "missing_signals": missing,
+                    "questions_count": len(questions),
+                    "message": f"Description quality score {quality_score}/4 is below threshold. Requesting user clarification.",
+                    "completed_at": _timestamp(),
+                },
+            )
+
+            agent_run.reload()
+            agent_run.quality_score = quality_score
+            agent_run.quality_missing_signals = missing
+            agent_run.clarification_questions = questions
+            agent_run.status = "awaiting_clarification"
+            agent_run.save()
+
+            return {
+                "status": "awaiting_clarification",
+                "questions": questions,
+            }
+
+        # Quality passed — log success
+        update_log_entry(
+            agent_name="quality_check",
+            updates={
+                "type": "quality_check",
+                "status": "completed",
+                "quality_score": quality_score,
+                "missing_signals": quality_result.get("missing_signals", []),
+                "message": f"Description quality score {quality_score}/4 — sufficient for analysis.",
+                "completed_at": _timestamp(),
+            },
+        )
+
+        # Refine the description
+        persist_log_entry({
+            "agent": "idea_refinement",
+            "status": "started",
+            "message": "Refining the idea description for analysis.",
+            "timestamp": _timestamp(),
+        })
+
+        refined = refine_description(title, truncated_desc)
+        agent_run.reload()
+        agent_run.quality_score = quality_score
+        agent_run.refined_description = refined
+        agent_run.save()
+
+        # Use refined description for all subsequent steps
+        if refined and refined.strip() and refined != raw_description:
+            idea_text = f"{title}\n\n{refined[:settings.IDEA_DESCRIPTION_AI_MAX_CHARS]}"
+
+        update_log_entry(
+            agent_name="idea_refinement",
+            updates={
+                "type": "idea_refinement",
+                "status": "completed",
+                "quality_score": quality_score,
+                "original_length": len(raw_description),
+                "refined_length": len(refined),
+                "message": f"Description refined ({len(raw_description)} → {len(refined)} chars).",
+                "completed_at": _timestamp(),
+            },
+        )
+
+        # --- Classification ---
         persist_log_entry({
             "agent": "idea_classification",
             "status": "started",

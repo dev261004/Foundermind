@@ -7,7 +7,7 @@ class AgentRun(me.Document):
     execution_log = me.ListField(me.DictField(), default=list)
     models_used = me.DictField(default=dict)
     status = me.StringField(
-        choices=["pending", "running", "completed", "partial", "failed", "quota_exhausted"],
+        choices=["pending", "running", "completed", "partial", "failed", "quota_exhausted", "awaiting_clarification"],
         default="pending"
     )
     critique = me.DictField()
@@ -22,6 +22,14 @@ class AgentRun(me.Document):
     iterations_used = me.IntField()
     convergence_reason = me.StringField()
     iteration_scores = me.ListField(me.FloatField(), default=list)
+
+    # Description quality & clarification fields
+    original_description = me.StringField()
+    refined_description = me.StringField()
+    quality_score = me.IntField()
+    quality_missing_signals = me.ListField(me.StringField())
+    clarification_questions = me.ListField(me.StringField())
+    clarification_answers = me.DictField()
 
     created_at = me.DateTimeField(default=datetime.datetime.utcnow)
     meta = {

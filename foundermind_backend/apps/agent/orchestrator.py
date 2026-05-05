@@ -120,7 +120,7 @@ class StartupOrchestrator:
     TARGET_OVERALL = 8
     MIN_SECTION_SCORE = 6
     TARGET_WEIGHTED = 7.5
-    MAX_IMPROVEMENT_ITERATIONS = 3
+    MAX_IMPROVEMENT_ITERATIONS = 2
     SCORE_IMPROVEMENT_EPSILON = 0.01
     SECTION_TOOL_MAP = {
         "similar_startups": "search_similar_startups",

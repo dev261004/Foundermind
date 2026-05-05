@@ -888,3 +888,163 @@
     font-size: 34px;
   }
 }
+
+/* --- Clarification Panel --- */
+.clarificationWrap {
+  display: grid;
+  place-items: center;
+  padding: 70px 24px;
+}
+
+.clarificationPanel {
+  width: min(760px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(10, 12, 20, 0.86),
+    rgba(8, 9, 16, 0.66)
+  );
+  box-shadow:
+    0 20px 60px rgba(4, 6, 13, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+  border-radius: 32px;
+  padding: 36px;
+  text-align: center;
+}
+
+.clarificationIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(6, 182, 212, 0.15));
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  margin-bottom: 20px;
+  color: #a78bfa;
+}
+
+.clarificationTitle {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 10px;
+}
+
+.clarificationSubtitle {
+  max-width: 52ch;
+  margin: 0 auto 28px;
+  color: #9ca9c0;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.clarificationQuestions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: left;
+}
+
+.clarificationQuestion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.clarificationLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #e6eefc;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.clarificationIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  color: #a78bfa;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.clarificationTextarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f4f7fb;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.24s ease, background 0.24s ease;
+}
+
+.clarificationTextarea::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.clarificationTextarea:focus {
+  border-color: rgba(124, 58, 237, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.clarificationTextarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.clarificationSubmitBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 24px;
+  margin-top: 8px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #7c3aed, #0891b2);
+  box-shadow: 0 18px 40px rgba(76, 29, 149, 0.35);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.24s ease, box-shadow 0.24s ease, opacity 0.24s ease;
+}
+
+.clarificationSubmitBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 50px rgba(76, 29, 149, 0.45);
+}
+
+.clarificationSubmitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes clarificationSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.clarificationSpinner {
+  animation: clarificationSpin 1s linear infinite;
+}

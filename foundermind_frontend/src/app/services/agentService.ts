@@ -10,6 +10,15 @@ export interface RunAnalysisRequest {
   force?: boolean
 }
 
+export interface ClarificationRequest {
+  answers: Record<string, string>
+}
+
+export interface ClarificationResponse {
+  status: string
+  run_id: string
+}
+
 const ANALYSIS_REQUEST_TIMEOUT_MS = 3 * 60 * 1000
 
 export const agentService = {
@@ -30,6 +39,13 @@ export const agentService = {
   runAnalysis: async (data: RunAnalysisRequest): Promise<AgentAnalysisResponse> => {
     const response = await apiClient.post<AgentAnalysisResponse>("/agent/run/", data, {
       timeout: ANALYSIS_REQUEST_TIMEOUT_MS,
+    })
+    return response.data
+  },
+
+  submitClarification: async (runId: string, answers: Record<string, string>): Promise<ClarificationResponse> => {
+    const response = await apiClient.post<ClarificationResponse>(`/agent/clarify/${runId}/`, {
+      answers,
     })
     return response.data
   },

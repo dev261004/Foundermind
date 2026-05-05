@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
   ChevronDown,
   CircleAlert,
   Layers3,
+  Loader2,
   RefreshCw,
   Sparkles,
   Search,
@@ -19,6 +20,9 @@ import {
   Users,
   Cpu,
   Zap,
+  HelpCircle,
+  ArrowRight as ArrowRightIcon,
+  MessageSquare,
 } from "lucide-react";
 import { useRunStore } from "@/store/useRunStore";
 import { useIdeaStore } from "@/store/useIdeaStore";
@@ -192,6 +196,9 @@ export default function IdeaAnalysisPage({ ideaId }: Props) {
 
         {(status === "idle" || status === "running") && (
           <LoadingState executionLog={executionLog} />
+        )}
+        {status === "awaiting_clarification" && (
+          <ClarificationPanel />
         )}
         {status === "failed" && (
           <ErrorState
@@ -729,6 +736,124 @@ function ErrorState({
   );
 }
 
+function ClarificationPanel() {
+  const questions = useRunStore((state) => state.clarificationQuestions);
+  const activeRunId = useRunStore((state) => state.activeRunId);
+  const submitClarification = useRunStore((state) => state.submitClarification);
+  const executionLog = useRunStore((state) => state.executionLog);
+
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const hasAnyAnswer = Object.values(answers).some((v) => v.trim().length > 0);
+
+  const handleSubmit = async () => {
+    if (!activeRunId || !hasAnyAnswer) return;
+
+    setIsSubmitting(true);
+    try {
+      // Filter to only non-empty answers
+      const filledAnswers: Record<string, string> = {};
+      for (const [key, value] of Object.entries(answers)) {
+        if (value.trim()) {
+          filledAnswers[key] = value.trim();
+        }
+      }
+      await submitClarification(activeRunId, filledAnswers);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <section className={styles.clarificationWrap}>
+      <div className={styles.clarificationPanel}>
+        <div className={styles.clarificationIcon}>
+          <MessageSquare size={32} />
+        </div>
+
+        <h2 className={styles.clarificationTitle}>
+          Help us understand your idea better
+        </h2>
+        <p className={styles.clarificationSubtitle}>
+          Our AI needs a bit more context to generate a high-quality analysis.
+          Answer one or more of these questions:
+        </p>
+
+        <div className={styles.clarificationQuestions}>
+          {questions.map((question, index) => (
+            <div key={index} className={styles.clarificationQuestion}>
+              <label className={styles.clarificationLabel}>
+                <span className={styles.clarificationIndex}>{index + 1}</span>
+                {question}
+              </label>
+              <textarea
+                className={styles.clarificationTextarea}
+                placeholder="Type your answer here..."
+                disabled={isSubmitting}
+                value={answers[String(index)] ?? ""}
+                onChange={(e) =>
+                  setAnswers((prev) => ({
+                    ...prev,
+                    [String(index)]: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          ))}
+
+          <button
+            type="button"
+            className={styles.clarificationSubmitBtn}
+            disabled={!hasAnyAnswer || isSubmitting}
+            onClick={handleSubmit}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 size={16} className={styles.clarificationSpinner} />
+                Submitting...
+              </>
+            ) : (
+              <>
+                Continue analysis
+                <ArrowRightIcon size={16} />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {executionLog.length > 0 && (
+        <section className={styles.loadingTimeline} style={{ marginTop: 28, width: "min(760px, 100%)" }}>
+          <div className={styles.cardHeader}>
+            <div>
+              <h2 className={styles.cardTitle}>Execution Timeline</h2>
+              <span className={styles.cardSubtitle}>
+                Steps completed before clarification was requested.
+              </span>
+            </div>
+            <span className={styles.pill}>
+              <Activity size={14} />
+              {executionLog.length} events
+            </span>
+          </div>
+
+          <div className={styles.timelineList}>
+            {executionLog.map((entry, index) => (
+              <TimelineEntry
+                key={`${entry.type ?? entry.tool ?? "event"}-${index}`}
+                entry={entry}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </section>
+  );
+}
+
+
+
 function TimelineEntry({ entry }: { entry: AgentExecutionLogEntry }) {
   return (
     <div className={styles.timelineItem}>
@@ -771,11 +896,15 @@ function MetricTile({
 }
 
 function getTimelineTitle(entry: AgentExecutionLogEntry) {
+  if (entry.type === "quality_check") return "Quality check";
+  if (entry.type === "idea_refinement") return "Idea refinement";
   if (entry.type === "idea_classification") return "Idea classification";
   if (entry.type === "inter_tool_delay") return "Inter-tool pacing";
   if (entry.type === "self_healing_cycle")
     return `Self-healing cycle ${entry.iteration ?? ""}`.trim();
   if (entry.type === "convergence") return "Convergence decision";
+  if (entry.agent === "quality_check") return "Quality check";
+  if (entry.agent === "idea_refinement") return "Idea refinement";
   if (entry.agent) return humanizeKey(entry.agent);
   if (entry.tool) return humanizeKey(entry.tool);
   return "Agent event";
@@ -784,6 +913,21 @@ function getTimelineTitle(entry: AgentExecutionLogEntry) {
 function getTimelineDescription(entry: AgentExecutionLogEntry) {
   if (entry.type === "idea_classification") {
     return `Classified as ${entry.idea_type ?? "general"} using ${entry.classification_source ?? "unknown"} with confidence ${formatScore(entry.classification_confidence ?? 0, true)}.`;
+  }
+
+  if (entry.type === "quality_check") {
+    const score = entry.quality_score ?? 0;
+    const missing = entry.missing_signals ?? [];
+    if (entry.status === "awaiting_clarification") {
+      return `Quality score ${score}/4 — below threshold. Missing: ${missing.join(", ") || "none"}. Requesting user clarification.`;
+    }
+    return `Quality score ${score}/4 — sufficient for analysis.`;
+  }
+
+  if (entry.type === "idea_refinement") {
+    const origLen = entry.original_length ?? 0;
+    const refLen = entry.refined_length ?? 0;
+    return `Description refined from ${origLen} to ${refLen} characters.`;
   }
 
   if (entry.type === "self_healing_cycle") {

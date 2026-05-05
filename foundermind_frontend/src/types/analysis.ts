@@ -237,6 +237,12 @@ export interface AgentExecutionLogEntry {
   iteration_scores?: number[]
   after_tool?: string
   delay_seconds?: number
+  quality_score?: number
+  missing_signals?: string[]
+  questions_count?: number
+  original_length?: number
+  refined_length?: number
+  completed_at?: string
 }
 
 export interface AgentAnalysisResponse {
@@ -257,17 +263,18 @@ export interface AgentAnalysisResponse {
 
 export interface StartAnalysisResponse {
   agent_run_id: string
-  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted"
+  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification"
   mode?: "async" | "sync_fallback" | "cached"
   result?: AgentAnalysisResponse
   critique?: Partial<AgentCritique> & { error?: string; message?: string }
   error?: string
+  clarification_questions?: string[]
 }
 
 export interface AgentAnalysisStatusResponse {
   agent_run_id: string
   idea_id: string
-  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted"
+  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification"
   execution_log: AgentExecutionLogEntry[]
   critique?: Partial<AgentCritique> & { error?: string; message?: string }
   confidence?: number | null
@@ -275,4 +282,10 @@ export interface AgentAnalysisStatusResponse {
   convergence_reason?: string | null
   iteration_scores?: number[]
   result?: AgentAnalysisResponse
+  clarification_questions?: string[]
+}
+
+export interface ClarificationState {
+  questions: string[]
+  run_id: string
 }

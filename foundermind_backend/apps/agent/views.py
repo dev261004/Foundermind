@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from .services import StartupAnalysisService
 from apps.agent.tasks import run_startup_analysis
 from apps.agent.models import AgentRun, IdeaAnalysis
+from apps.ideas.models import Idea
 
 
 @api_view(["POST"])
@@ -27,6 +28,14 @@ def start_analysis(request):
             if latest_finished_run
             else None
         )
+
+        if latest_finished_run and latest_finished_run.status == "awaiting_clarification":
+            return Response({
+                "agent_run_id": str(latest_finished_run.id),
+                "status": "awaiting_clarification",
+                "clarification_questions": latest_finished_run.clarification_questions or [],
+                "mode": "cached",
+            })
 
         if latest_finished_run and latest_finished_run.status in StartupAnalysisService.RESULT_AVAILABLE_STATUSES:
             response = {
@@ -127,8 +136,76 @@ def get_analysis_status(request, run_id):
         "iteration_scores": run.iteration_scores or [],
     }
 
+    if run.status == "awaiting_clarification":
+        response["clarification_questions"] = run.clarification_questions or []
+
     if run.status in StartupAnalysisService.RESULT_AVAILABLE_STATUSES:
         analysis = StartupAnalysisService._get_analysis_for_run(run)
         response["result"] = StartupAnalysisService.build_run_response(run, analysis=analysis)
 
     return Response(response)
+
+
+@api_view(["POST"])
+def submit_clarification(request, run_id):
+    agent_run = AgentRun.objects(id=run_id).first()
+    if not agent_run:
+        return Response({"error": "Agent run not found"}, status=404)
+
+    if agent_run.status != "awaiting_clarification":
+        return Response(
+            {"error": "This run is not awaiting clarification"},
+            status=400,
+        )
+
+    answers = request.data.get("answers", {})
+    if not answers or not isinstance(answers, dict):
+        return Response({"error": "At least one answer is required"}, status=400)
+
+    # Filter out empty answers
+    answers = {k: v for k, v in answers.items() if isinstance(v, str) and v.strip()}
+    if not answers:
+        return Response({"error": "At least one non-empty answer is required"}, status=400)
+
+    # Save answers
+    agent_run.clarification_answers = answers
+    agent_run.save()
+
+    # Build enriched description
+    original_desc = agent_run.original_description or ""
+    questions = agent_run.clarification_questions or []
+
+    enrichment_parts = []
+    for idx_str, answer in sorted(answers.items(), key=lambda x: x[0]):
+        try:
+            idx = int(idx_str)
+            if idx < len(questions):
+                enrichment_parts.append(f"Q: {questions[idx]}\nA: {answer.strip()}")
+        except (ValueError, IndexError):
+            continue
+
+    enriched_description = original_desc
+    if enrichment_parts:
+        clarification_block = "\n\n".join(enrichment_parts)
+        enriched_description = f"{original_desc}\n\nAdditional context:\n{clarification_block}"
+
+    # Update the Idea object with enriched description
+    idea_obj = Idea.objects(id=agent_run.idea_id).first()
+    if idea_obj:
+        idea_obj.description = enriched_description
+        idea_obj.save()
+
+    # Reset execution log and re-queue analysis
+    agent_run.status = "running"
+    agent_run.execution_log = []
+    agent_run.save()
+
+    try:
+        run_startup_analysis.delay(str(agent_run.id))
+    except Exception:
+        run_startup_analysis.apply(args=[str(agent_run.id)])
+
+    return Response({
+        "status": "running",
+        "run_id": str(agent_run.id),
+    })

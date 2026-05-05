@@ -2,7 +2,7 @@ import { create } from "zustand"
 import { agentService } from "@/app/services/agentService"
 import { AgentAnalysisResponse } from "@/types/analysis"
 
-type RunStatus = "idle" | "running" | "completed" | "partial" | "failed" | "quota_exhausted"
+type RunStatus = "idle" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification"
 
 const RESULT_READY_STATUSES = new Set<RunStatus>(["completed", "partial", "quota_exhausted"])
 
@@ -15,8 +15,10 @@ interface RunState {
   error: string | null
   rerunCount: number
   isConverged: boolean
+  clarificationQuestions: string[]
 
   startAnalysis: (ideaId: string, options?: { force?: boolean }) => Promise<void>
+  submitClarification: (runId: string, answers: Record<string, string>) => Promise<void>
   setFullResult: (ideaId: string | AgentAnalysisResponse, data?: AgentAnalysisResponse) => void
   incrementRerun: () => void
   markConverged: () => void
@@ -32,6 +34,7 @@ export const useRunStore = create<RunState>((set) => ({
   error: null,
   rerunCount: 0,
   isConverged: false,
+  clarificationQuestions: [],
 
   startAnalysis: async (ideaId, options) => {
     const state = useRunStore.getState()
@@ -51,6 +54,7 @@ export const useRunStore = create<RunState>((set) => ({
       executionLog: [],
       status: "running",
       error: null,
+      clarificationQuestions: [],
     })
 
     try {
@@ -59,6 +63,22 @@ export const useRunStore = create<RunState>((set) => ({
         force: options?.force ?? false,
       })
       const { agent_run_id } = startResponse
+
+      // Handle awaiting_clarification from cached response
+      if (startResponse.status === "awaiting_clarification") {
+        set({
+          activeIdeaId: ideaId,
+          activeRunId: agent_run_id,
+          result: null,
+          executionLog: [],
+          status: "awaiting_clarification",
+          error: null,
+          clarificationQuestions: startResponse.clarification_questions ?? [],
+          rerunCount: 0,
+          isConverged: false,
+        })
+        return
+      }
 
       if (RESULT_READY_STATUSES.has(startResponse.status as RunStatus) && startResponse.result) {
         const data = startResponse.result
@@ -72,6 +92,7 @@ export const useRunStore = create<RunState>((set) => ({
           error: startResponse.critique?.message ?? null,
           rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
           isConverged: !data.critique?.needs_rerun,
+          clarificationQuestions: [],
         })
         return
       }
@@ -89,6 +110,7 @@ export const useRunStore = create<RunState>((set) => ({
             "Analysis failed. Please try again.",
           rerunCount: 0,
           isConverged: false,
+          clarificationQuestions: [],
         })
         return
       }
@@ -97,6 +119,19 @@ export const useRunStore = create<RunState>((set) => ({
 
       for (let attempt = 0; attempt < 180; attempt += 1) {
         const poll = await agentService.getAnalysisStatus(agent_run_id)
+
+        // Handle awaiting_clarification during polling
+        if (poll.status === "awaiting_clarification") {
+          set({
+            activeIdeaId: ideaId,
+            activeRunId: agent_run_id,
+            executionLog: poll.execution_log ?? [],
+            status: "awaiting_clarification",
+            error: null,
+            clarificationQuestions: poll.clarification_questions ?? [],
+          })
+          return // Stop polling
+        }
 
         set((current) => ({
           activeIdeaId: ideaId,
@@ -128,6 +163,7 @@ export const useRunStore = create<RunState>((set) => ({
             error: poll.critique?.message ?? null,
             rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
             isConverged: !data.critique?.needs_rerun,
+            clarificationQuestions: [],
           })
           return
         }
@@ -152,6 +188,96 @@ export const useRunStore = create<RunState>((set) => ({
         status: "failed",
         error: message,
         isConverged: false,
+        clarificationQuestions: [],
+      })
+    }
+  },
+
+  submitClarification: async (runId, answers) => {
+    const state = useRunStore.getState()
+    const ideaId = state.activeIdeaId
+
+    set({
+      status: "running",
+      executionLog: [],
+      clarificationQuestions: [],
+      error: null,
+    })
+
+    try {
+      await agentService.submitClarification(runId, answers)
+
+      // Resume polling — re-trigger startAnalysis which will poll the now-running task
+      if (ideaId) {
+        // Small delay to let the task start
+        await new Promise((resolve) => setTimeout(resolve, 500))
+
+        // Poll for status directly since the run is already in progress
+        for (let attempt = 0; attempt < 180; attempt += 1) {
+          const poll = await agentService.getAnalysisStatus(runId)
+
+          if (poll.status === "awaiting_clarification") {
+            set({
+              activeIdeaId: ideaId,
+              activeRunId: runId,
+              executionLog: poll.execution_log ?? [],
+              status: "awaiting_clarification",
+              error: null,
+              clarificationQuestions: poll.clarification_questions ?? [],
+            })
+            return
+          }
+
+          set((current) => ({
+            activeIdeaId: ideaId,
+            activeRunId: runId,
+            executionLog: poll.execution_log ?? current.executionLog,
+            status:
+              poll.status === "failed"
+                ? "failed"
+                : poll.status === "completed" || poll.status === "partial" || poll.status === "quota_exhausted"
+                  ? (poll.status as RunStatus)
+                  : "running",
+            error:
+              poll.status === "failed"
+                ? poll.critique?.error ?? "Analysis failed. Please try again."
+                : poll.status === "quota_exhausted"
+                  ? poll.critique?.message ?? "Analysis paused — quota reached. Retry after rate limit resets."
+                : null,
+          }))
+
+          if (RESULT_READY_STATUSES.has(poll.status as RunStatus) && poll.result) {
+            const data = poll.result
+
+            set({
+              activeIdeaId: ideaId,
+              activeRunId: runId,
+              result: data,
+              executionLog: data.execution_log ?? [],
+              status: poll.status as RunStatus,
+              error: poll.critique?.message ?? null,
+              rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
+              isConverged: !data.critique?.needs_rerun,
+              clarificationQuestions: [],
+            })
+            return
+          }
+
+          if (poll.status === "failed") {
+            return
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 1500))
+        }
+      }
+    } catch (err: unknown) {
+      const message =
+        (err as { message?: string })?.message ?? "Failed to submit clarification. Please try again."
+
+      set({
+        status: "failed",
+        error: message,
+        clarificationQuestions: [],
       })
     }
   },
@@ -173,6 +299,7 @@ export const useRunStore = create<RunState>((set) => ({
       error: null,
       rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
       isConverged: !data.critique?.needs_rerun,
+      clarificationQuestions: [],
     })
   },
 
@@ -192,5 +319,6 @@ export const useRunStore = create<RunState>((set) => ({
       error: null,
       rerunCount: 0,
       isConverged: false,
+      clarificationQuestions: [],
     }),
 }))

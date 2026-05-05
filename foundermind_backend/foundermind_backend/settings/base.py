@@ -129,3 +129,9 @@ AGENT_MODELS = {
     "fallback_gemini": "gemini-2.5-flash-lite",
     "fallback_gemma": "gemma-3-27b-it",
 }
+
+# Idea description limits
+IDEA_DESCRIPTION_MIN_CHARS = 150
+IDEA_DESCRIPTION_MAX_CHARS = 1000
+IDEA_DESCRIPTION_AI_MAX_CHARS = 800   # truncation limit before sending to AI tools
+IDEA_QUALITY_MIN_SCORE = 2            # minimum quality score (0-4) to proceed with analysis

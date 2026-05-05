@@ -22,7 +22,7 @@ _GENAI_CLIENT: genai.Client | None = None
 
 GEMINI_REQUEST_TIMEOUT_SECONDS = 60
 GEMINI_CALL_GUARD_TIMEOUT_SECONDS = 65
-PRIMARY_RATE_LIMIT_BACKOFFS = (15, 30, 60)
+PRIMARY_RATE_LIMIT_BACKOFFS = (10, 20)
 FALLBACK_RATE_LIMIT_BACKOFFS = (15, 30)
 TRANSIENT_RETRY_DELAY_SECONDS = 10
 TRANSIENT_MAX_RETRIES = 2
@@ -119,6 +119,11 @@ def _generate_content(prompt: str, model_name: str) -> str:
     response = client.models.generate_content(
         model=model_name,
         contents=prompt,
+        config=types.GenerateContentConfig(
+            http_options=types.HttpOptions(
+                timeout=GEMINI_REQUEST_TIMEOUT_SECONDS * 1000,
+            ),
+        ),
     )
     return _extract_response_text(response)
 
