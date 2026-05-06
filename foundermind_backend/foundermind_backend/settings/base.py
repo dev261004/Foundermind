@@ -127,7 +127,7 @@ AGENT_MODELS = {
     "tool_heavy": "gemini-3.1-flash-lite-preview",
     "tool_light": "gemma-4-31b-it",
     "fallback_gemini": "gemini-2.5-flash-lite",
-    "fallback_gemma": "gemma-3-27b-it",
+    "fallback_gemma": "gemma-4-26b-a4b-it",
 }
 
 PASSWORD_RESET_TOKEN_TTL_MINUTES = env("PASSWORD_RESET_TOKEN_TTL_MINUTES", 30, int)

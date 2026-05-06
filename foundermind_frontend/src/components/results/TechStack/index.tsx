@@ -15,6 +15,16 @@ const confidenceColors = {
   Optional: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 };
 
+// Safelist for dynamic gradients sent from backend
+// from-orange-500 to-orange-600
+// from-teal-500 to-teal-600
+// from-blue-500 to-blue-600
+// from-purple-500 to-purple-600
+// from-green-500 to-green-600
+// from-cyan-500 to-cyan-600
+// from-red-500 to-red-600
+// from-pink-500 to-pink-600
+
 function TechCard({ item }: { item: TechItem }) {
   const [isSwapOpen, setIsSwapOpen] = useState(false);
   const [selectedTech, setSelectedTech] = useState(item.name);

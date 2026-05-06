@@ -24,11 +24,11 @@ interface MarketDataProps {
 
 type TabKey = "market_drivers" | "target_segments" | "competitive_landscape" | "key_signals"
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "market_drivers", label: "Market Drivers" },
-  { key: "target_segments", label: "Target Segments" },
-  { key: "competitive_landscape", label: "Competitive Landscape" },
-  { key: "key_signals", label: "Key Signals" },
+const TABS: { key: TabKey; label: string; tooltip: string }[] = [
+  { key: "market_drivers", label: "Market Drivers", tooltip: "Underlying forces, trends, and catalysts fueling demand in this market." },
+  { key: "target_segments", label: "Target Segments", tooltip: "Specific customer groups or verticals that represent the best early adopters." },
+  { key: "competitive_landscape", label: "Competitive Landscape", tooltip: "Current alternatives, incumbents, and the dynamic between players." },
+  { key: "key_signals", label: "Key Signals", tooltip: "Recent events, technological shifts, or funding trends validating the space." },
 ]
 
 const SECTION_MARKERS: Record<TabKey, string[]> = {
@@ -384,12 +384,12 @@ export function MarketData({ text, quantitativeModel, structured }: MarketDataPr
 
       {/* Tabs & Content */}
       <section>
-        <div className="flex border-b border-white/5 mb-8 overflow-x-auto no-scrollbar">
+        <div className="flex flex-wrap border-b border-white/5 mb-8 overflow-visible">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTabKey(tab.key)}
-              className={`px-8 py-4 text-sm font-semibold tracking-wide whitespace-nowrap transition-all relative ${
+              className={`group/tab px-8 py-4 text-sm font-semibold tracking-wide whitespace-nowrap transition-all relative ${
                 activeTabKey === tab.key ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -400,6 +400,9 @@ export function MarketData({ text, quantitativeModel, structured }: MarketDataPr
                   className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500"
                 />
               )}
+              <div className="absolute bottom-[80%] left-1/2 -translate-x-1/2 mb-2 w-52 p-2.5 bg-[#1C1D26] border border-white/10 text-xs text-[#C0C0D0] leading-relaxed rounded-lg shadow-xl opacity-0 invisible group-hover/tab:opacity-100 group-hover/tab:visible transition-all duration-200 pointer-events-none z-[100] translate-y-1 group-hover/tab:translate-y-0 text-center whitespace-normal normal-case tracking-normal">
+                {tab.tooltip}
+              </div>
             </button>
           ))}
         </div>

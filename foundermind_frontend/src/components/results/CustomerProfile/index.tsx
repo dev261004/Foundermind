@@ -139,7 +139,7 @@ export function CustomerProfile({
   profile: CustomerProfileData;
 }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-6">
       <div className="flex flex-col gap-6 bg-[#15151E] border border-white/5 rounded-xl p-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-10 left-1/2 -translate-x-1/2 w-48 h-48 bg-purple-500/20 blur-[50px] rounded-full pointer-events-none" />
 
@@ -163,7 +163,7 @@ export function CustomerProfile({
             {profile.profession}
           </p>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="relative group cursor-help flex flex-wrap gap-2">
             {profile.buying_behavior_tags.map((tag, index) => (
               <span
                 key={`${tag}-${index}`}
@@ -172,12 +172,18 @@ export function CustomerProfile({
                 {tag}
               </span>
             ))}
+            <div className="absolute bottom-full left-0 mb-2 w-56 p-2.5 bg-[#1C1D26] border border-white/10 text-xs text-[#C0C0D0] leading-relaxed rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-10 translate-y-1 group-hover:translate-y-0 text-left">
+              Key behavioral traits defining how this persona thinks and acts.
+            </div>
           </div>
 
-          <div className="relative bg-[#111219] p-4 rounded-lg border border-white/5 before:content-[''] before:absolute before:left-0 before:top-0 before:w-1 before:h-full before:bg-purple-500 before:rounded-l-lg">
+          <div className="relative bg-[#111219] p-4 rounded-lg border border-white/5 before:content-[''] before:absolute before:left-0 before:top-0 before:w-1 before:h-full before:bg-purple-500 before:rounded-l-lg group cursor-help">
             <p className="italic text-[#C0C0D0] text-[13px] leading-relaxed">
               {profile.quote}
             </p>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2.5 bg-[#1C1D26] border border-white/10 text-xs text-[#C0C0D0] leading-relaxed rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-10 translate-y-1 group-hover:translate-y-0 text-center">
+              A representative quote capturing the core sentiment and frustration of this persona.
+            </div>
           </div>
 
           <div className="flex flex-col gap-2.5 bg-[#111219] rounded-lg p-3.5 border border-white/5">
@@ -201,7 +207,7 @@ export function CustomerProfile({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="relative group cursor-help flex flex-col gap-2">
             <span className="text-[11px] font-bold text-[#8A8A98] uppercase tracking-wider">Brand Affinities</span>
             <div className="flex flex-wrap gap-2">
               {profile.brand_affinities.map((brand, index) => (
@@ -212,6 +218,9 @@ export function CustomerProfile({
                   {brand}
                 </span>
               ))}
+            </div>
+            <div className="absolute bottom-full left-0 mb-2 w-56 p-2.5 bg-[#1C1D26] border border-white/10 text-xs text-[#C0C0D0] leading-relaxed rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-10 translate-y-1 group-hover:translate-y-0 text-left">
+              Brands and platforms this persona frequently uses, indicating their UX expectations.
             </div>
           </div>
         </div>

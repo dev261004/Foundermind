@@ -1,10 +1,5 @@
-"use client"
-
-import React, { FormEvent, useEffect, useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
-import { useAuthStore } from "@/store/useAuthStore"
-import { useIdeaStore } from "@/store/useIdeaStore"
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Loader2, Sparkles, Target, AlertTriangle, 
   Lightbulb, CheckCircle2, Shield, Brain, 
@@ -12,6 +7,7 @@ import {
   Cpu, Users, Layers, Activity,
   Presentation, DollarSign
 } from 'lucide-react';
+import { analyzeStartupIdea, IdeaAnalysis } from '../services/geminiService';
 
 const CAPABILITIES = [
   {
@@ -72,61 +68,50 @@ const CAPABILITIES = [
   }
 ];
 
-interface Props {
-  open?: boolean
-  onClose?: () => void
-}
+export default function StartupIdeaAnalyzer() {
+  const [email, setEmail] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<IdeaAnalysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
-  const router = useRouter()
-  const authEmail = useAuthStore((state) => state.email)
-  const createIdea = useIdeaStore((state) => state.createIdea)
-  const submissionStatus = useIdeaStore((state) => state.submissionStatus)
-  const storeError = useIdeaStore((state) => state.error)
-  const clearError = useIdeaStore((state) => state.clearError)
-
-  const [guestEmail, setGuestEmail] = useState("")
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-
+  // Simulate auto-fetching the user email
   useEffect(() => {
-    if (open) {
-      clearError()
+    // In a real application, this would fetch from an auth context or API
+    setEmail('devnimblechapps@gmail.com');
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !description || description.length < 150) return;
+
+    setIsAnalyzing(true);
+    setError(null);
+    try {
+      const result = await analyzeStartupIdea(title, description);
+      setAnalysis(result);
+    } catch (err) {
+      console.error(err);
+      setError('Analysis interrupted. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
     }
-  }, [open, clearError])
+  };
 
-  const isSubmitting = submissionStatus === "submitting"
+  const closeAnalysis = () => {
+    setAnalysis(null);
+  };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    clearError()
-
-    const trimmedEmail = (authEmail ?? guestEmail).trim()
-    const trimmedTitle = title.trim()
-    const trimmedDescription = description.trim()
-
-    if (!trimmedEmail || !trimmedTitle || trimmedDescription.length < 150) {
-      return
-    }
-
-    const ideaId = await createIdea({
-      userEmail: trimmedEmail,
-      title: trimmedTitle,
-      description: trimmedDescription,
-    })
-
-    if (!ideaId) {
-      return
-    }
-
-    if (onClose) onClose()
-    router.push(`/idea/${ideaId}`)
-  }
-
-  if (!open) return null;
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setEmail('');
+    setError(null);
+  };
 
   return (
-    <div className="min-h-screen bg-[#020203] text-white selection:bg-blue-500/30 font-sans overflow-x-hidden w-full">
+    <div className="min-h-screen bg-[#020203] text-white selection:bg-blue-500/30 font-sans overflow-x-hidden">
       {/* Immersive Background */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_-20%,#1e1b4b_0%,transparent_50%)]" />
@@ -212,67 +197,36 @@ export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
             
             <div className="relative bg-[#0A0A0B]/80 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-10 shadow-2xl overflow-hidden">
               <form onSubmit={handleSubmit} className="space-y-8">
-                <div className="flex flex-col gap-3">
-                  <label className="text-[10px] uppercase tracking-widest text-white ml-1">Email</label>
+                <div className="space-y-3">
+                  <label className="text-[10px] uppercase tracking-widest text-white/30 font-bold ml-1">Email</label>
                   <input
                     type="email"
-                    required
-                    disabled={isSubmitting || Boolean(authEmail)}
-                    placeholder={authEmail ? "Authenticated" : "you@example.com"}
-                    value={authEmail ?? guestEmail}
-                    onChange={(e) => setGuestEmail(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none disabled:opacity-60 disabled:cursor-not-allowed text-white/90 focus:border-blue-500/50 focus:bg-white/[0.08] transition-all font-mono text-sm"
+                    disabled
+                    placeholder="Fetching session..."
+                    value={email}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none opacity-60 cursor-not-allowed text-white/50 transition-all font-mono text-sm"
                   />
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <div className="flex justify-between items-end mb-1">
-                    <label className="text-[10px] uppercase tracking-widest text-white ml-1">Idea Title</label>
-                  </div>
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      required
-                      minLength={3}
-                      maxLength={50}
-                      disabled={isSubmitting}
-                      placeholder="AI powered hiring platform"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className={`w-full bg-white/5 border rounded-2xl px-5 py-4 outline-none transition-all placeholder:text-white/20 ${
-                        title.length >= 45 ? 'border-amber-500/50 focus:border-amber-500 focus:bg-amber-500/5' :
-                        'border-white/10 focus:border-blue-500/50 focus:bg-white/[0.08]'
-                      }`}
-                    />
-                    <div className="flex justify-between items-start mt-2 px-1">
-                      <div className="flex-1">
-                        {title.length > 0 && title.length < 3 && (
-                          <p className="text-[10.5px] text-amber-400/90 font-medium tracking-wide mt-1 flex items-center gap-1.5">
-                            <AlertTriangle size={12} />
-                            Minimum 3 characters required
-                          </p>
-                        )}
-                      </div>
-                      <span className={`shrink-0 text-[10px] uppercase tracking-widest font-bold transition-colors mt-1 ${
-                        title.length >= 50 ? 'text-red-400' :
-                        title.length >= 40 ? 'text-amber-400' :
-                        title.length >= 3 ? 'text-white/60' :
-                        'text-white/30'
-                      }`}>
-                        {title.length} / 50
-                      </span>
-                    </div>
-                  </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] uppercase tracking-widest text-white/30 font-bold ml-1">Idea Title</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="AI powered hiring platform"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none focus:border-blue-500/50 focus:bg-white/[0.08] transition-all placeholder:text-white/20"
+                  />
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <div className="flex justify-between items-end mb-1">
-                    <label className="text-[10px] uppercase tracking-widest text-white ml-1">Business Hypothesis</label>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-end mb-3">
+                    <label className="text-[10px] uppercase tracking-widest text-white/30 font-bold ml-1">Business Hypothesis</label>
                   </div>
                   <div className="space-y-2">
                     <textarea
                       required
-                      disabled={isSubmitting}
                       rows={6}
                       minLength={150}
                       maxLength={1000}
@@ -308,12 +262,12 @@ export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || description.length < 150}
+                  disabled={isAnalyzing || description.length < 150}
                   className="w-full h-16 relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-2xl font-black text-[13px] uppercase tracking-[0.2em] shadow-[0_0_40px_-10px_rgba(79,70,229,0.4)] hover:shadow-[0_0_60px_-15px_rgba(79,70,229,0.7)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-500 active:scale-[0.98] group overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-out" />
                   <span className="flex items-center justify-center gap-3 relative z-10">
-                    {isSubmitting ? (
+                    {isAnalyzing ? (
                       <>
                         <Loader2 size={18} className="animate-spin" />
                         Analyzing via Agents...
@@ -330,18 +284,25 @@ export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
             </div>
           </div>
           
-          {storeError && (
+          {error && (
             <motion.p 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="mt-6 text-red-500/80 text-xs text-center font-bold tracking-widest uppercase"
             >
-              {storeError}
+              {error}
             </motion.p>
           )}
         </motion.div>
         </div>
       </main>
     </div>
-  )
+  );
+}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
 }
