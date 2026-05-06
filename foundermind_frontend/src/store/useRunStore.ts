@@ -1,8 +1,20 @@
 import { create } from "zustand"
-import { agentService } from "@/app/services/agentService"
+import {
+  agentService,
+  StopAnalysisAction,
+  StopAnalysisResponse,
+} from "@/app/services/agentService"
 import { AgentAnalysisResponse } from "@/types/analysis"
 
-type RunStatus = "idle" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification"
+type RunStatus =
+  | "idle"
+  | "running"
+  | "completed"
+  | "partial"
+  | "failed"
+  | "quota_exhausted"
+  | "awaiting_clarification"
+  | "cancelled"
 
 const RESULT_READY_STATUSES = new Set<RunStatus>(["completed", "partial", "quota_exhausted"])
 const POLL_INTERVAL_MS = 1500
@@ -44,6 +56,22 @@ function getStableExecutionLog(
   return next
 }
 
+function buildCancellationEntry(action: StopAnalysisAction) {
+  const messageByAction: Record<StopAnalysisAction, string> = {
+    edit: "Analysis stopped so you can edit the idea and rerun it.",
+    new_idea: "Analysis stopped so you can submit a different idea.",
+    terminate: "Analysis stopped and is being permanently deleted.",
+  }
+
+  return {
+    type: "user_cancelled",
+    action,
+    status: "cancelled",
+    message: messageByAction[action],
+    timestamp: new Date().toISOString(),
+  }
+}
+
 interface RunState {
   activeIdeaId: string | null
   activeRunId: string | null
@@ -57,6 +85,7 @@ interface RunState {
 
   startAnalysis: (ideaId: string, options?: { force?: boolean }) => Promise<void>
   submitClarification: (runId: string, answers: Record<string, string>) => Promise<void>
+  stopAnalysis: (action: StopAnalysisAction) => Promise<StopAnalysisResponse | null>
   setFullResult: (ideaId: string | AgentAnalysisResponse, data?: AgentAnalysisResponse) => void
   incrementRerun: () => void
   markConverged: () => void
@@ -89,7 +118,10 @@ export const useRunStore = create<RunState>((set) => ({
       activeIdeaId: ideaId,
       activeRunId: null,
       result: options?.force || state.activeIdeaId !== ideaId ? null : state.result,
-      executionLog: [],
+      executionLog:
+        options?.force && state.activeIdeaId === ideaId
+          ? state.executionLog
+          : [],
       status: "running",
       error: null,
       clarificationQuestions: [],
@@ -115,6 +147,24 @@ export const useRunStore = create<RunState>((set) => ({
           rerunCount: 0,
           isConverged: false,
         })
+        return
+      }
+
+      if (startResponse.status === "cancelled") {
+        set((current) => ({
+          activeIdeaId: ideaId,
+          activeRunId: agent_run_id,
+          result: null,
+          executionLog: getStableExecutionLog(
+            current.executionLog,
+            startResponse.execution_log ?? []
+          ),
+          status: "cancelled",
+          error: startResponse.critique?.message ?? null,
+          rerunCount: 0,
+          isConverged: false,
+          clarificationQuestions: [],
+        }))
         return
       }
 
@@ -153,10 +203,24 @@ export const useRunStore = create<RunState>((set) => ({
         return
       }
 
-      set({ activeRunId: agent_run_id })
+      set((current) => ({
+        activeRunId: agent_run_id,
+        executionLog: getStableExecutionLog(
+          current.executionLog,
+          startResponse.execution_log
+        ),
+      }))
 
       for (let attempt = 0; attempt < MAX_ANALYSIS_POLL_ATTEMPTS; attempt += 1) {
         const poll = await agentService.getAnalysisStatus(agent_run_id)
+        const currentState = useRunStore.getState()
+
+        if (
+          currentState.activeRunId === agent_run_id &&
+          currentState.status === "cancelled"
+        ) {
+          return
+        }
 
         // Handle awaiting_clarification during polling
         if (poll.status === "awaiting_clarification") {
@@ -172,6 +236,21 @@ export const useRunStore = create<RunState>((set) => ({
             clarificationQuestions: poll.clarification_questions ?? [],
           }))
           return // Stop polling
+        }
+
+        if (poll.status === "cancelled") {
+          set((current) => ({
+            activeIdeaId: ideaId,
+            activeRunId: agent_run_id,
+            executionLog: getStableExecutionLog(
+              current.executionLog,
+              poll.execution_log
+            ),
+            status: "cancelled",
+            error: poll.critique?.message ?? null,
+            clarificationQuestions: [],
+          }))
+          return
         }
 
         set((current) => ({
@@ -259,6 +338,11 @@ export const useRunStore = create<RunState>((set) => ({
         // Poll for status directly since the run is already in progress
         for (let attempt = 0; attempt < MAX_ANALYSIS_POLL_ATTEMPTS; attempt += 1) {
           const poll = await agentService.getAnalysisStatus(runId)
+          const currentState = useRunStore.getState()
+
+          if (currentState.activeRunId === runId && currentState.status === "cancelled") {
+            return
+          }
 
           if (poll.status === "awaiting_clarification") {
             set((current) => ({
@@ -271,6 +355,21 @@ export const useRunStore = create<RunState>((set) => ({
               status: "awaiting_clarification",
               error: null,
               clarificationQuestions: poll.clarification_questions ?? [],
+            }))
+            return
+          }
+
+          if (poll.status === "cancelled") {
+            set((current) => ({
+              activeIdeaId: ideaId,
+              activeRunId: runId,
+              executionLog: getStableExecutionLog(
+                current.executionLog,
+                poll.execution_log
+              ),
+              status: "cancelled",
+              error: poll.critique?.message ?? null,
+              clarificationQuestions: [],
             }))
             return
           }
@@ -332,6 +431,35 @@ export const useRunStore = create<RunState>((set) => ({
         clarificationQuestions: [],
       })
     }
+  },
+
+  stopAnalysis: async (action) => {
+    const state = useRunStore.getState()
+    if (!state.activeRunId || !state.activeIdeaId) {
+      return null
+    }
+
+    const response = await agentService.stopAnalysis(state.activeRunId, action)
+
+    if (response.status === "cancelled") {
+      const cancellationEntry = buildCancellationEntry(action)
+      set((current) => ({
+        activeIdeaId: response.idea_id ?? current.activeIdeaId,
+        activeRunId: response.agent_run_id ?? current.activeRunId,
+        result: null,
+        executionLog: getStableExecutionLog(current.executionLog, [
+          ...current.executionLog,
+          cancellationEntry,
+        ]),
+        status: "cancelled",
+        error: "Analysis stopped by user.",
+        rerunCount: 0,
+        isConverged: false,
+        clarificationQuestions: [],
+      }))
+    }
+
+    return response
   },
 
   setFullResult: (ideaIdOrData, maybeData) => {

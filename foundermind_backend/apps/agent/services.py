@@ -81,6 +81,40 @@ class StartupAnalysisService:
         return resumable_entries
 
     @staticmethod
+    def is_resumable_run(source_run) -> bool:
+        if not source_run:
+            return False
+
+        if source_run.status in StartupAnalysisService.RESUMABLE_STATUSES:
+            return True
+
+        if source_run.status != "cancelled":
+            return False
+
+        critique = source_run.critique or {}
+        if critique.get("cancelled_action") in {"new_idea", "edit"}:
+            return True
+
+        for entry in reversed(source_run.execution_log or []):
+            if entry.get("type") != "user_cancelled":
+                continue
+            return entry.get("action") in {"new_idea", "edit"}
+
+        return False
+
+    @staticmethod
+    def delete_analysis_artifacts_for_idea(idea_id: str):
+        run_ids = [
+            str(run.id)
+            for run in AgentRun.objects(idea_id=idea_id).only("id")
+        ]
+
+        IdeaAnalysis.objects(idea_id=idea_id).delete()
+        if run_ids:
+            IdeaAnalysis.objects(run_id__in=run_ids).delete()
+        AgentRun.objects(idea_id=idea_id).delete()
+
+    @staticmethod
     def run_analysis(idea_id: str):
         idea_obj = Idea.objects(id=idea_id).first()
         if not idea_obj:

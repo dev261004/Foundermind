@@ -8,7 +8,7 @@ class AgentRun(me.Document):
     pipeline_state = me.DictField(default=dict)
     models_used = me.DictField(default=dict)
     status = me.StringField(
-        choices=["pending", "running", "completed", "partial", "failed", "quota_exhausted", "awaiting_clarification"],
+        choices=["pending", "running", "completed", "partial", "failed", "quota_exhausted", "awaiting_clarification", "cancelled"],
         default="pending"
     )
     critique = me.DictField()

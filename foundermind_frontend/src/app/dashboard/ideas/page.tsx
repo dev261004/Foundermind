@@ -49,7 +49,7 @@ export default function DashboardIdeasPage() {
   const [baseHistory, setBaseHistory] = useState<IdeaHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isUpdatingHistory, setIsUpdatingHistory] = useState(false);
+  const [, setIsUpdatingHistory] = useState(false);
   const [deletingIdeaId, setDeletingIdeaId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -404,7 +404,7 @@ export default function DashboardIdeasPage() {
                       <div className="space-y-3">
                         <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Status</label>
                         <div className="grid grid-cols-2 gap-2 text-left">
-                          {['all', 'completed', 'active', 'partial', 'failed', 'quota_exhausted'].map((s) => (
+                          {['all', 'completed', 'active', 'partial', 'failed', 'cancelled', 'quota_exhausted'].map((s) => (
                             <button
                               key={s}
                               onClick={() => setStatusFilter(s as IdeaHistoryStatusFilter)}
@@ -691,6 +691,7 @@ function IdeaHistoryCard({ idea, onDelete, onView }: { idea: IdeaHistoryItem, on
     if (status === "completed") return "success";
     if (status === "partial" || status === "quota_exhausted") return "warning";
     if (status === "failed") return "danger";
+    if (status === "cancelled") return "warning";
     return "neutral";
   };
 
@@ -767,10 +768,16 @@ function IdeaHistoryCard({ idea, onDelete, onView }: { idea: IdeaHistoryItem, on
 
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              href={`/idea/${idea.idea_id}`}
+              href={{
+                pathname: `/idea/${idea.idea_id}`,
+                query: {
+                  title: idea.title,
+                  ...(idea.status === "cancelled" ? { resume: "1" } : {}),
+                },
+              }}
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:brightness-110"
             >
-              View full analysis
+              {idea.status === "cancelled" ? "Retry analysis" : "View full analysis"}
               <ArrowRight size={16} />
             </Link>
 

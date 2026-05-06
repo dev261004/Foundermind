@@ -141,6 +141,7 @@ class ToolExecutor:
         use_checkpoints: bool = True,
         force_tools: list[str] | set[str] | None = None,
         iteration: int | None = None,
+        should_abort=None,
     ):
 
         execution_log = []
@@ -174,6 +175,9 @@ class ToolExecutor:
         def append_result(tool_name: str, output) -> None:
             with state_lock:
                 self._append_result(results, tool_name, output)
+
+        def should_stop() -> bool:
+            return bool(should_abort and should_abort())
 
         def flush_parallel_tools() -> None:
             nonlocal parallel_executor, parallel_futures
@@ -213,6 +217,10 @@ class ToolExecutor:
         steps = plan.get("steps", [])
 
         for step in steps:
+            if should_stop():
+                flush_parallel_tools()
+                break
+
             tool_name = step.get("tool")
             is_forced = forced_tool_set is not None and tool_name in forced_tool_set
             checkpoint_entry = (
@@ -263,6 +271,8 @@ class ToolExecutor:
                     continue
 
                 flush_parallel_tools()
+                if should_stop():
+                    break
                 append_log({
                     "tool": tool_name,
                     "status": "started",
@@ -298,5 +308,6 @@ class ToolExecutor:
 
         return {
             "results": results,
-            "execution_log": execution_log
+            "execution_log": execution_log,
+            "aborted": should_stop(),
         }

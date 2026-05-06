@@ -1,9 +1,58 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .services import StartupAnalysisService
-from apps.agent.tasks import run_startup_analysis
+from apps.agent.tasks import (
+    CANCELLABLE_RUN_STATUSES,
+    _mark_run_cancelled,
+    execute_analysis_stage,
+    prepare_analysis_stage,
+    run_startup_analysis,
+)
 from apps.agent.models import AgentRun, IdeaAnalysis
 from apps.ideas.models import Idea
+
+
+def _get_resume_iteration(agent_run: AgentRun) -> int:
+    latest_iteration = 0
+    for entry in agent_run.execution_log or []:
+        iteration = entry.get("iteration")
+        if isinstance(iteration, int) and iteration > latest_iteration:
+            latest_iteration = iteration
+    return latest_iteration
+
+
+def _resume_cancelled_run(agent_run: AgentRun):
+    pipeline_state = dict(agent_run.pipeline_state or {})
+    has_execution_plan = bool(pipeline_state.get("idea_text")) and isinstance(
+        pipeline_state.get("plan"),
+        dict,
+    )
+
+    agent_run.status = "running"
+    agent_run.save()
+
+    if has_execution_plan:
+        iteration = _get_resume_iteration(agent_run)
+        try:
+            execute_analysis_stage.delay(
+                str(agent_run.id),
+                iteration=iteration,
+                rerun_tools=None,
+            )
+        except Exception:
+            execute_analysis_stage.apply(
+                args=[str(agent_run.id)],
+                kwargs={
+                    "iteration": iteration,
+                    "rerun_tools": None,
+                },
+            )
+        return
+
+    try:
+        prepare_analysis_stage.delay(str(agent_run.id))
+    except Exception:
+        prepare_analysis_stage.apply(args=[str(agent_run.id)])
 
 
 @api_view(["POST"])
@@ -57,12 +106,45 @@ def start_analysis(request):
                 "mode": "cached",
             })
 
+        if latest_finished_run and latest_finished_run.status == "cancelled":
+            return Response({
+                "agent_run_id": str(latest_finished_run.id),
+                "status": "cancelled",
+                "critique": latest_finished_run.critique or {},
+                "execution_log": latest_finished_run.execution_log or [],
+                "mode": "cached",
+            })
+
+    if (
+        force
+        and latest_finished_run
+        and latest_finished_run.status == "cancelled"
+        and StartupAnalysisService.is_resumable_run(latest_finished_run)
+    ):
+        _resume_cancelled_run(latest_finished_run)
+        latest_finished_run.reload()
+        return Response({
+            "agent_run_id": str(latest_finished_run.id),
+            "status": "running",
+            "mode": "async",
+            "execution_log": latest_finished_run.execution_log or [],
+        })
+
+    resumable_run = (
+        latest_finished_run
+        if force
+        and latest_finished_run
+        and StartupAnalysisService.is_resumable_run(latest_finished_run)
+        and latest_finished_run.status != "cancelled"
+        else None
+    )
+
     agent_run = AgentRun(
         idea_id=idea_id,
         status="pending",
         execution_log=(
-            StartupAnalysisService.build_resume_execution_log(latest_finished_run)
-            if force and latest_finished_run and latest_finished_run.status in StartupAnalysisService.RESUMABLE_STATUSES
+            StartupAnalysisService.build_resume_execution_log(resumable_run)
+            if resumable_run
             else []
         ),
     )
@@ -91,6 +173,9 @@ def start_analysis(request):
                 agent_run,
                 analysis=analysis,
             )
+        elif agent_run.status == "cancelled":
+            response["execution_log"] = agent_run.execution_log or []
+            response["critique"] = agent_run.critique or {}
         elif task_result.get("error"):
             response["error"] = task_result["error"]
             response["critique"] = agent_run.critique or {}
@@ -144,6 +229,48 @@ def get_analysis_status(request, run_id):
         response["result"] = StartupAnalysisService.build_run_response(run, analysis=analysis)
 
     return Response(response)
+
+
+@api_view(["POST"])
+def stop_analysis(request, run_id):
+    action = (request.data.get("action") or "").strip()
+    if action not in {"edit", "new_idea", "terminate"}:
+        return Response({"error": "Invalid stop action"}, status=400)
+
+    agent_run = AgentRun.objects(id=run_id).first()
+    if not agent_run:
+        return Response({"error": "Agent run not found"}, status=404)
+
+    idea_obj = Idea.objects(id=agent_run.idea_id).first()
+    allowed_stop_statuses = CANCELLABLE_RUN_STATUSES | {"cancelled"}
+
+    if action != "terminate" and agent_run.status not in allowed_stop_statuses:
+        return Response({"error": "This analysis can no longer be stopped"}, status=409)
+
+    if action != "terminate" and not idea_obj:
+        return Response({"error": "Idea not found"}, status=404)
+
+    if agent_run.status in CANCELLABLE_RUN_STATUSES:
+        _mark_run_cancelled(agent_run, action=action)
+        agent_run.reload()
+
+    if action == "terminate":
+        idea_id = agent_run.idea_id
+        StartupAnalysisService.delete_analysis_artifacts_for_idea(idea_id)
+        if idea_obj:
+            idea_obj.delete()
+        return Response({
+            "status": "terminated",
+            "idea_id": idea_id,
+        })
+
+    return Response({
+        "status": "cancelled",
+        "agent_run_id": str(agent_run.id),
+        "idea_id": agent_run.idea_id,
+        "title": getattr(idea_obj, "title", ""),
+        "description": getattr(idea_obj, "description", "") or "",
+    })
 
 
 @api_view(["POST"])

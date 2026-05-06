@@ -1,18 +1,16 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
-  ArrowRight,
   Banknote,
   BrainCircuit,
   ChevronDown,
   CircleAlert,
   Layers3,
   Loader2,
-  RefreshCw,
   Sparkles,
   Search,
   TrendingUp,
@@ -120,31 +118,69 @@ const SECTION_CONFIG: Array<{
   },
 ];
 
-const LOADING_STAGES = [
-  "Planner selecting tools",
-  "Executor gathering signals",
-  "Critic scoring quality",
-  "Final synthesis",
-];
-
 export default function IdeaAnalysisPage({ ideaId }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const startAnalysis = useRunStore((state) => state.startAnalysis);
+  const stopAnalysis = useRunStore((state) => state.stopAnalysis);
+  const resetRunState = useRunStore((state) => state.reset);
   const activeIdeaId = useRunStore((state) => state.activeIdeaId);
   const result = useRunStore((state) => state.result);
   const executionLog = useRunStore((state) => state.executionLog);
   const status = useRunStore((state) => state.status);
   const error = useRunStore((state) => state.error);
   const ideaInput = useIdeaStore((state) => state.ideaInput);
+  const setEditDraft = useIdeaStore((state) => state.setEditDraft);
+  const clearEditDraft = useIdeaStore((state) => state.clearEditDraft);
+  const resetIdeaState = useIdeaStore((state) => state.reset);
+  const hasStartedResumeRef = useRef(false);
+  const requestedTitle = (searchParams.get("title") || "").trim();
+  const resumeRequested = searchParams.get("resume") === "1";
 
   useEffect(() => {
+    if (resumeRequested && !hasStartedResumeRef.current) {
+      hasStartedResumeRef.current = true;
+      void startAnalysis(ideaId, { force: true });
+      const nextUrl = requestedTitle
+        ? `/idea/${ideaId}?title=${encodeURIComponent(requestedTitle)}`
+        : `/idea/${ideaId}`;
+      router.replace(nextUrl);
+      return;
+    }
+
     if (activeIdeaId !== ideaId || status === "idle") {
       void startAnalysis(ideaId);
     }
-  }, [activeIdeaId, ideaId, startAnalysis, status]);
+  }, [activeIdeaId, ideaId, requestedTitle, resumeRequested, router, startAnalysis, status]);
 
-  const runTitle = result?.idea_title || ideaInput?.trim() || `Idea ${ideaId.slice(0, 8)}`;
+  const runTitle =
+    result?.idea_title ||
+    requestedTitle ||
+    ideaInput?.trim() ||
+    `Idea ${ideaId.slice(0, 8)}`;
   const ideaType = result ? capitalize(result.idea_type) : "Pending";
-  const runStatusLabel = formatRunStatus(status);
+
+  const handleStopAnalysis = async (action: "edit" | "new_idea" | "terminate") => {
+    const response = await stopAnalysis(action);
+    if (!response) {
+      return;
+    }
+
+    if (action === "edit" && response.status === "cancelled") {
+      setEditDraft({
+        ideaId: response.idea_id,
+        title: response.title ?? "",
+        description: response.description ?? "",
+      });
+      router.push(`/submit?mode=edit&ideaId=${response.idea_id}`);
+      return;
+    }
+
+    clearEditDraft();
+    resetRunState();
+    resetIdeaState();
+    router.push("/submit");
+  };
 
   return (
     <main className={styles.page}>
@@ -154,6 +190,7 @@ export default function IdeaAnalysisPage({ ideaId }: Props) {
         runStatus={status}
         errorMessage={error}
         onRetry={() => void startAnalysis(ideaId, { force: true })}
+        onStopAnalysis={handleStopAnalysis}
         ideaTitle={runTitle}
         ideaType={ideaType}
       />
@@ -188,7 +225,10 @@ function AnalysisContent({
   bannerMessage?: string | null;
 }) {
   const ideaInput = useIdeaStore((state) => state.ideaInput);
-  const runTitle = ideaInput?.trim() || `Idea ${(result.idea_id ?? "").slice(0, 8)}`;
+  const runTitle =
+    result.idea_title ||
+    ideaInput?.trim() ||
+    `Idea ${(result.idea_id ?? "").slice(0, 8)}`;
   const showIncompleteSections =
     status === "partial" || status === "quota_exhausted";
   const sectionEntries = showIncompleteSections
@@ -621,73 +661,6 @@ function SectionRenderer({
   );
 }
 
-function LoadingState({
-  executionLog,
-}: {
-  executionLog: AgentExecutionLogEntry[];
-}) {
-  return (
-    <section className={styles.loadingWrap}>
-      <div className={styles.emptyState}>
-        <div className={styles.loader} />
-        <h2 className={styles.loadingTitle}>Running your startup analysis</h2>
-        <p className={styles.loadingText}>
-          The backend is executing the planner, research tools, and critic loop.
-          Progress appears below as each step completes, and the final report
-          replaces this view automatically.
-        </p>
-        <div className={styles.loadingStages}>
-          {LOADING_STAGES.map((stage) => (
-            <span key={stage} className={styles.stageChip}>
-              {stage}
-            </span>
-          ))}
-        </div>
-
-        <ExecutionTimelineCard
-          executionLog={executionLog}
-          subtitle="Live tool progress while your analysis is being generated."
-          emptyMessage="Waiting for the first backend event. The timeline will populate as soon as the backend persists the next step."
-        />
-      </div>
-    </section>
-  );
-}
-
-function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string | null;
-  onRetry: () => void;
-}) {
-  return (
-    <section className={styles.errorWrap}>
-      <div className={styles.emptyState}>
-        <CircleAlert size={42} />
-        <h2 className={styles.errorTitle}>Analysis could not complete</h2>
-        <p className={styles.errorText}>
-          {message ??
-            "The backend returned an unexpected failure while processing this idea."}
-        </p>
-        <div className={styles.heroActions}>
-          <button
-            type="button"
-            className={styles.primaryAction}
-            onClick={onRetry}
-          >
-            <RefreshCw size={16} />
-            Try again
-          </button>
-          <Link href="/submit" className={styles.secondaryAction}>
-            Back to submit
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function ClarificationPanel() {
   const questions = useRunStore((state) => state.clarificationQuestions);
   const activeRunId = useRunStore((state) => state.activeRunId);
@@ -851,24 +824,6 @@ function TimelineEntry({ entry }: { entry: AgentExecutionLogEntry }) {
         </div>
         <p className={styles.timelineMeta}>{getTimelineDescription(entry)}</p>
       </div>
-    </div>
-  );
-}
-
-function MetricTile({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <div className={styles.metricTile}>
-      <span className={styles.metricLabel}>{label}</span>
-      <span className={styles.metricValue}>{value}</span>
-      <span className={styles.metricHint}>{hint}</span>
     </div>
   );
 }

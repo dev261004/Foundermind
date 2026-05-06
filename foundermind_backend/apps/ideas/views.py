@@ -6,11 +6,12 @@ from mongoengine.errors import ValidationError
 
 from .models import Idea, IDEA_STATUS_DELETED
 from apps.agent.models import AgentRun, IdeaAnalysis
+from apps.agent.services import StartupAnalysisService
 
 from core.permissions import jwt_required
 
 DEFAULT_HISTORY_SORT = "date-desc"
-VALID_HISTORY_STATUS_FILTERS = {"all", "active", "completed", "partial", "failed", "quota_exhausted"}
+VALID_HISTORY_STATUS_FILTERS = {"all", "active", "completed", "partial", "failed", "quota_exhausted", "cancelled"}
 VALID_HISTORY_SORTS = {"date-asc", "date-desc", "score-asc", "score-desc"}
 
 
@@ -243,6 +244,41 @@ def create_idea(request):
     return Response({
         "message": "Idea created successfully",
         "idea": idea.to_json()
+    })
+
+
+@api_view(["PATCH"])
+def update_idea(request, idea_id):
+    try:
+        idea = Idea.objects(id=idea_id, status__ne=IDEA_STATUS_DELETED).first()
+    except ValidationError:
+        idea = None
+
+    if not idea:
+        return Response({"error": "Idea not found"}, status=404)
+
+    title = (request.data.get("title") or "").strip()
+    description = (request.data.get("description") or "").strip()
+    reset_analysis = bool(request.data.get("reset_analysis"))
+
+    if not title:
+        return Response({"error": "Missing title"}, status=400)
+
+    changed = title != idea.title or description != (idea.description or "")
+
+    if changed:
+        idea.title = title
+        idea.description = description
+        idea.updated_at = datetime.datetime.utcnow()
+        idea.save()
+
+    if changed and reset_analysis:
+        StartupAnalysisService.delete_analysis_artifacts_for_idea(str(idea.id))
+
+    return Response({
+        "message": "Idea updated successfully" if changed else "Idea unchanged",
+        "idea": idea.to_json(),
+        "rerun_required": bool(changed and reset_analysis),
     })
 
 

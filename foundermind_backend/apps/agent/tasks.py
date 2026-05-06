@@ -24,6 +24,14 @@ REVIEW_ANALYSIS_SOFT_TIMEOUT_SECONDS = 240
 REVIEW_ANALYSIS_HARD_TIMEOUT_SECONDS = 300
 REPORT_ANALYSIS_SOFT_TIMEOUT_SECONDS = 240
 REPORT_ANALYSIS_HARD_TIMEOUT_SECONDS = 300
+CANCELLABLE_RUN_STATUSES = {"pending", "running", "awaiting_clarification"}
+IMMUTABLE_TERMINAL_RUN_STATUSES = {
+    "cancelled",
+    "completed",
+    "failed",
+    "partial",
+    "quota_exhausted",
+}
 
 
 def _timestamp() -> str:
@@ -43,6 +51,57 @@ def _build_timeout_message(stage_label: str, seconds: int) -> str:
         f"{stage_label.capitalize()} stage timed out after "
         f"{_format_timeout_window(seconds)}"
     )
+
+
+def _is_cancelled(run_id: str) -> bool:
+    agent_run = AgentRun.objects(id=run_id).only("status").first()
+    return bool(agent_run and agent_run.status == "cancelled")
+
+
+def _build_cancellation_entry(action: str) -> dict:
+    action_messages = {
+        "edit": "Analysis stopped so you can edit the idea and rerun it.",
+        "new_idea": "Analysis stopped so you can submit a different idea.",
+        "terminate": "Analysis stopped and is being permanently deleted.",
+    }
+    return {
+        "type": "user_cancelled",
+        "status": "cancelled",
+        "action": action,
+        "message": action_messages.get(action, "Analysis stopped by user."),
+        "timestamp": _timestamp(),
+    }
+
+
+def _mark_run_cancelled(agent_run: AgentRun, *, action: str):
+    agent_run.reload()
+    if agent_run.status == "cancelled":
+        return
+
+    current_log = list(agent_run.execution_log or [])
+    current_log.append(_build_cancellation_entry(action))
+
+    critique = dict(agent_run.critique or {})
+    critique["message"] = "Analysis stopped by user."
+    critique["cancelled_action"] = action
+
+    agent_run.execution_log = current_log
+    agent_run.status = "cancelled"
+    agent_run.critique = critique
+    agent_run.save()
+
+
+def _resolve_next_run_status(agent_run: AgentRun, requested_status: str) -> str:
+    current_status = agent_run.status
+    if current_status in IMMUTABLE_TERMINAL_RUN_STATUSES:
+        return current_status
+    return requested_status
+
+
+def _abort_if_cancelled(run_id: str):
+    if _is_cancelled(run_id):
+        return {"status": "cancelled"}
+    return None
 
 
 def _get_agent_run(run_id: str) -> AgentRun:
@@ -156,6 +215,11 @@ def _queue_or_run_report(run_id: str, *, inline: bool):
 def _mark_stage_failure(run_id: str, error_message: str):
     agent_run = _get_agent_run(run_id)
     _mark_run_failed(agent_run, error_message)
+    agent_run.reload()
+    if agent_run.status == "cancelled":
+        return {
+            "status": "cancelled",
+        }
     return {
         "status": "failed",
         "error": error_message,
@@ -191,7 +255,7 @@ def _save_execution_entry(agent_run: AgentRun, entry: dict, status: str = "runni
 
     agent_run.execution_log = current_log
     agent_run.models_used = current_models
-    agent_run.status = status
+    agent_run.status = _resolve_next_run_status(agent_run, status)
     agent_run.save()
 
 
@@ -226,7 +290,7 @@ def _update_execution_entry(
 
         agent_run.execution_log = current_log
         agent_run.models_used = current_models
-        agent_run.status = status
+        agent_run.status = _resolve_next_run_status(agent_run, status)
         agent_run.save()
         return updated_entry
 
@@ -268,6 +332,9 @@ def _mark_run_failed(
     error_message: str,
     critique: dict | None = None,
 ):
+    agent_run.reload()
+    if agent_run.status == "cancelled":
+        return
     _save_execution_entry(agent_run, {
         "type": "pipeline_error",
         "status": "failed",
@@ -290,6 +357,9 @@ def _mark_run_quota_exhausted(
     analysis_confidence: float | None = None,
     weighted_score: float | None = None,
 ):
+    agent_run.reload()
+    if agent_run.status == "cancelled":
+        return
     _save_execution_entry(agent_run, {
         "type": "quota_exhausted",
         "status": "failed",
@@ -330,6 +400,9 @@ def _tool_failures_present(agent_run: AgentRun) -> bool:
 
 
 def _run_prepare_stage(run_id: str, *, inline: bool):
+    aborted = _abort_if_cancelled(run_id)
+    if aborted:
+        return aborted
     agent_run = _get_agent_run(run_id)
     idea_obj = _get_idea(agent_run)
     persist_log_entry, update_log_entry = _build_log_callbacks(agent_run)
@@ -553,6 +626,9 @@ def _run_prepare_stage(run_id: str, *, inline: bool):
         classification=classification,
     )
 
+    aborted = _abort_if_cancelled(run_id)
+    if aborted:
+        return aborted
     return _queue_or_run_execute(
         run_id,
         iteration=0,
@@ -568,6 +644,9 @@ def _run_execute_stage(
     rerun_tools: list[str] | None = None,
     inline: bool,
 ):
+    aborted = _abort_if_cancelled(run_id)
+    if aborted:
+        return aborted
     agent_run = _get_agent_run(run_id)
     pipeline_state = _load_pipeline_state(agent_run)
     idea_text = pipeline_state.get("idea_text")
@@ -599,14 +678,21 @@ def _run_execute_stage(
         use_checkpoints=True,
         force_tools=rerun_tools,
         iteration=iteration,
+        should_abort=lambda: _is_cancelled(run_id),
     )
     results = orchestrator.enrich_results(execution_data["results"])
     _upsert_analysis_snapshot(agent_run, results)
 
+    aborted = _abort_if_cancelled(run_id)
+    if aborted:
+        return aborted
     return _queue_or_run_review(run_id, iteration=iteration, inline=inline)
 
 
 def _run_review_stage(run_id: str, *, iteration: int = 0, inline: bool):
+    aborted = _abort_if_cancelled(run_id)
+    if aborted:
+        return aborted
     agent_run = _get_agent_run(run_id)
     pipeline_state = _load_pipeline_state(agent_run)
     idea_text = pipeline_state.get("idea_text")
@@ -707,6 +793,9 @@ def _run_review_stage(run_id: str, *, iteration: int = 0, inline: bool):
         agent_run.reload()
         agent_run.convergence_reason = convergence_reason
         agent_run.save()
+        aborted = _abort_if_cancelled(run_id)
+        if aborted:
+            return aborted
         return _queue_or_run_report(run_id, inline=inline)
 
     next_iteration = iteration + 1
@@ -717,6 +806,9 @@ def _run_review_stage(run_id: str, *, iteration: int = 0, inline: bool):
         average_score=average_score,
     ))
 
+    aborted = _abort_if_cancelled(run_id)
+    if aborted:
+        return aborted
     return _queue_or_run_execute(
         run_id,
         iteration=next_iteration,
@@ -726,6 +818,9 @@ def _run_review_stage(run_id: str, *, iteration: int = 0, inline: bool):
 
 
 def _run_report_stage(run_id: str):
+    aborted = _abort_if_cancelled(run_id)
+    if aborted:
+        return aborted
     agent_run = _get_agent_run(run_id)
     pipeline_state = _load_pipeline_state(agent_run)
     idea_text = pipeline_state.get("idea_text")

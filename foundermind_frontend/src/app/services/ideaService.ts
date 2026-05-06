@@ -21,11 +21,23 @@ export interface CreateIdeaResponse {
   idea: IdeaRecord
 }
 
+export interface UpdateIdeaRequest {
+  title: string
+  description?: string
+  reset_analysis: boolean
+}
+
+export interface UpdateIdeaResponse {
+  message: string
+  idea: IdeaRecord
+  rerun_required: boolean
+}
+
 export interface IdeaHistoryItem {
   idea_id: string
   title: string
   description?: string
-  status?: "completed" | "partial" | "failed" | "quota_exhausted" | "active"
+  status?: "completed" | "partial" | "failed" | "quota_exhausted" | "active" | "cancelled"
   created_at?: string
   updated_at?: string
   analyzed_at?: string
@@ -48,6 +60,7 @@ export type IdeaHistoryStatusFilter =
   | "completed"
   | "partial"
   | "failed"
+  | "cancelled"
   | "quota_exhausted"
 
 export type IdeaHistorySort = "date-asc" | "date-desc" | "score-asc" | "score-desc"
@@ -67,6 +80,11 @@ export interface DeleteIdeaResponse {
 export const ideaService = {
   create: async (data: CreateIdeaRequest): Promise<CreateIdeaResponse> => {
     const response = await apiClient.post<CreateIdeaResponse>("/ideas/create/", data)
+    return response.data
+  },
+
+  updateIdea: async (ideaId: string, data: UpdateIdeaRequest): Promise<UpdateIdeaResponse> => {
+    const response = await apiClient.patch<UpdateIdeaResponse>(`/ideas/${ideaId}/`, data)
     return response.data
   },
 

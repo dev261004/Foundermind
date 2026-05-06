@@ -19,6 +19,16 @@ export interface ClarificationResponse {
   run_id: string
 }
 
+export type StopAnalysisAction = "edit" | "new_idea" | "terminate"
+
+export interface StopAnalysisResponse {
+  status: "cancelled" | "terminated"
+  agent_run_id?: string
+  idea_id: string
+  title?: string
+  description?: string
+}
+
 const ANALYSIS_REQUEST_TIMEOUT_MS = 3 * 60 * 1000
 
 export const agentService = {
@@ -46,6 +56,13 @@ export const agentService = {
   submitClarification: async (runId: string, answers: Record<string, string>): Promise<ClarificationResponse> => {
     const response = await apiClient.post<ClarificationResponse>(`/agent/clarify/${runId}/`, {
       answers,
+    })
+    return response.data
+  },
+
+  stopAnalysis: async (runId: string, action: StopAnalysisAction): Promise<StopAnalysisResponse> => {
+    const response = await apiClient.post<StopAnalysisResponse>(`/agent/stop/${runId}/`, {
+      action,
     })
     return response.data
   },

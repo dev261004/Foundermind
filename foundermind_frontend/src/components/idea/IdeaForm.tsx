@@ -1,15 +1,16 @@
 "use client"
 
 import React, { FormEvent, useEffect, useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useIdeaStore } from "@/store/useIdeaStore"
+import { useRunStore } from "@/store/useRunStore"
 import { 
-  X, Loader2, Sparkles, Target, AlertTriangle, 
-  Lightbulb, CheckCircle2, Shield, Brain, 
-  Zap, ChevronRight, FileText, BarChart3,
-  Cpu, Users, Layers, Activity,
+  Loader2, Sparkles, AlertTriangle,
+  Shield, Brain,
+  Zap, ChevronRight, BarChart3,
+  Users, Layers,
   Presentation, DollarSign
 } from 'lucide-react';
 
@@ -79,21 +80,62 @@ interface Props {
 
 export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const authEmail = useAuthStore((state) => state.email)
   const createIdea = useIdeaStore((state) => state.createIdea)
+  const updateIdea = useIdeaStore((state) => state.updateIdea)
   const submissionStatus = useIdeaStore((state) => state.submissionStatus)
   const storeError = useIdeaStore((state) => state.error)
   const clearError = useIdeaStore((state) => state.clearError)
+  const editDraft = useIdeaStore((state) => state.editDraft)
+  const loadEditDraft = useIdeaStore((state) => state.loadEditDraft)
+  const clearEditDraft = useIdeaStore((state) => state.clearEditDraft)
+  const resetRunState = useRunStore((state) => state.reset)
 
   const [guestEmail, setGuestEmail] = useState("")
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [initialDraft, setInitialDraft] = useState<{ title: string; description: string } | null>(null)
+  const editIdeaId = searchParams.get("ideaId")
+  const isEditMode = searchParams.get("mode") === "edit" && Boolean(editIdeaId)
+  const trimmedTitle = title.trim()
+  const trimmedDescription = description.trim()
+  const hasEditedContent = !isEditMode || !initialDraft
+    ? true
+    : (
+      trimmedTitle !== initialDraft.title.trim() ||
+      trimmedDescription !== initialDraft.description.trim()
+    )
 
   useEffect(() => {
     if (open) {
       clearError()
     }
   }, [open, clearError])
+
+  useEffect(() => {
+    if (!open || !isEditMode || !editIdeaId) {
+      return
+    }
+
+    const draft =
+      editDraft?.ideaId === editIdeaId ? editDraft : loadEditDraft()
+
+    if (!draft || draft.ideaId !== editIdeaId) {
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      setInitialDraft({
+        title: draft.title,
+        description: draft.description,
+      })
+      setTitle(draft.title)
+      setDescription(draft.description)
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [editDraft, editIdeaId, isEditMode, loadEditDraft, open])
 
   const isSubmitting = submissionStatus === "submitting"
 
@@ -102,10 +144,46 @@ export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
     clearError()
 
     const trimmedEmail = (authEmail ?? guestEmail).trim()
-    const trimmedTitle = title.trim()
-    const trimmedDescription = description.trim()
 
-    if (!trimmedEmail || !trimmedTitle || trimmedDescription.length < 150) {
+    if (!trimmedTitle || trimmedDescription.length < 150) {
+      return
+    }
+
+    if (isEditMode && editIdeaId) {
+      if (!hasEditedContent) {
+        clearEditDraft()
+        if (onClose) onClose()
+        router.push(
+          `/idea/${editIdeaId}?resume=1&title=${encodeURIComponent(trimmedTitle)}`
+        )
+        return
+      }
+
+      const response = await updateIdea({
+        ideaId: editIdeaId,
+        title: trimmedTitle,
+        description: trimmedDescription,
+        resetAnalysis: true,
+      })
+
+      if (!response) {
+        return
+      }
+
+      clearEditDraft()
+      setInitialDraft(null)
+      if (response.rerun_required) {
+        resetRunState()
+      }
+
+      if (onClose) onClose()
+      router.push(
+        `/idea/${editIdeaId}?title=${encodeURIComponent(trimmedTitle)}`
+      )
+      return
+    }
+
+    if (!trimmedEmail) {
       return
     }
 
@@ -119,6 +197,7 @@ export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
       return
     }
 
+    setInitialDraft(null)
     if (onClose) onClose()
     router.push(`/idea/${ideaId}`)
   }
@@ -212,18 +291,20 @@ export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
             
             <div className="relative bg-[#0A0A0B]/80 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-10 shadow-2xl overflow-hidden">
               <form onSubmit={handleSubmit} className="space-y-8">
-                <div className="flex flex-col gap-3">
-                  <label className="text-[10px] uppercase tracking-widest text-white ml-1">Email</label>
-                  <input
-                    type="email"
-                    required
-                    disabled={isSubmitting || Boolean(authEmail)}
-                    placeholder={authEmail ? "Authenticated" : "you@example.com"}
-                    value={authEmail ?? guestEmail}
-                    onChange={(e) => setGuestEmail(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none disabled:opacity-60 disabled:cursor-not-allowed text-white/90 focus:border-blue-500/50 focus:bg-white/[0.08] transition-all font-mono text-sm"
-                  />
-                </div>
+                {!isEditMode && (
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[10px] uppercase tracking-widest text-white ml-1">Email</label>
+                    <input
+                      type="email"
+                      required
+                      disabled={isSubmitting || Boolean(authEmail)}
+                      placeholder={authEmail ? "Authenticated" : "you@example.com"}
+                      value={authEmail ?? guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 outline-none disabled:opacity-60 disabled:cursor-not-allowed text-white/90 focus:border-blue-500/50 focus:bg-white/[0.08] transition-all font-mono text-sm"
+                    />
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-3">
                   <div className="flex justify-between items-end mb-1">
@@ -316,11 +397,15 @@ export default function IdeaForm({ open = true, onClose = () => {} }: Props) {
                     {isSubmitting ? (
                       <>
                         <Loader2 size={18} className="animate-spin" />
-                        Analyzing via Agents...
+                        {isEditMode ? "Saving changes..." : "Analyzing via Agents..."}
                       </>
                     ) : (
                       <>
-                        Start Analysis
+                        {isEditMode
+                          ? hasEditedContent
+                            ? "Save Changes & Rerun"
+                            : "Resume Analysis"
+                          : "Start Analysis"}
                         <ChevronRight size={18} className="transition-transform duration-300 group-hover:translate-x-1.5 group-hover:scale-110" />
                       </>
                     )}

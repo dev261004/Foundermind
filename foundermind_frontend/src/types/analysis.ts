@@ -231,6 +231,7 @@ export interface AgentExecutionLogEntry {
   type?: string
   agent?: string
   tool?: string
+  action?: string
   status?: string
   result?: string | null
   error?: string
@@ -282,18 +283,19 @@ export interface AgentAnalysisResponse {
 
 export interface StartAnalysisResponse {
   agent_run_id: string
-  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification"
+  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification" | "cancelled"
   mode?: "async" | "sync_fallback" | "cached"
   result?: AgentAnalysisResponse
   critique?: Partial<AgentCritique> & { error?: string; message?: string }
   error?: string
   clarification_questions?: string[]
+  execution_log?: AgentExecutionLogEntry[]
 }
 
 export interface AgentAnalysisStatusResponse {
   agent_run_id: string
   idea_id: string
-  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification"
+  status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification" | "cancelled"
   execution_log: AgentExecutionLogEntry[]
   critique?: Partial<AgentCritique> & { error?: string; message?: string }
   confidence?: number | null

@@ -3,8 +3,10 @@ import unittest
 from unittest.mock import patch
 
 from celery.exceptions import SoftTimeLimitExceeded
+from rest_framework.test import APIRequestFactory
 
 from apps.agent import tasks
+from apps.agent import views as agent_views
 from apps.agent.executor import ToolExecutor
 from apps.agent.orchestrator import StartupOrchestrator
 
@@ -15,6 +17,12 @@ class FakeQuerySet:
 
     def first(self):
         return self.result
+
+    def order_by(self, *_args, **_kwargs):
+        return self
+
+    def only(self, *_args, **_kwargs):
+        return self
 
 
 class FakeAgentRun:
@@ -53,6 +61,13 @@ class FakeIdea:
     def __init__(self, title="Idea", description="Test description for staged analysis."):
         self.title = title
         self.description = description
+        self.deleted = False
+
+    def save(self):
+        return None
+
+    def delete(self):
+        self.deleted = True
 
 
 class ToolExecutorTests(unittest.TestCase):
@@ -203,6 +218,33 @@ class ToolExecutorTests(unittest.TestCase):
             any(entry.get("reason") == "checkpoint_found" for entry in execution_data["execution_log"])
         )
 
+    def test_abort_callback_stops_scheduling_later_tools(self):
+        plan = {
+            "steps": [
+                {"tool": "search_market_data"},
+                {"tool": "generate_swot_analysis"},
+            ]
+        }
+        abort_checks = {"count": 0}
+
+        def should_abort():
+            abort_checks["count"] += 1
+            return abort_checks["count"] >= 2
+
+        with (
+            patch("apps.agent.executor.search_market_data", return_value="market"),
+            patch("apps.agent.executor.generate_swot_analysis") as generate_swot_analysis,
+        ):
+            execution_data = self.executor.execute_with_plan(
+                "idea",
+                plan,
+                should_abort=should_abort,
+            )
+
+        generate_swot_analysis.assert_not_called()
+        self.assertEqual(execution_data["results"]["market_data"], "market")
+        self.assertTrue(execution_data["aborted"])
+
 
 class StartupOrchestratorRerunTests(unittest.TestCase):
     def test_swot_is_added_when_upstream_dependency_reruns(self):
@@ -226,6 +268,20 @@ class StartupOrchestratorRerunTests(unittest.TestCase):
 
         self.assertIn("suggest_tech_stack", rerun_tools)
         self.assertNotIn("generate_swot_analysis", rerun_tools)
+
+
+class StartupAnalysisServiceTests(unittest.TestCase):
+    def test_new_idea_cancelled_run_is_resumable(self):
+        fake_run = FakeAgentRun(status="cancelled")
+        fake_run.critique = {"cancelled_action": "new_idea"}
+
+        self.assertTrue(tasks.StartupAnalysisService.is_resumable_run(fake_run))
+
+    def test_edit_cancelled_run_is_resumable(self):
+        fake_run = FakeAgentRun(status="cancelled")
+        fake_run.critique = {"cancelled_action": "edit"}
+
+        self.assertTrue(tasks.StartupAnalysisService.is_resumable_run(fake_run))
 
 
 class StartupAnalysisTaskTests(unittest.TestCase):
@@ -537,6 +593,120 @@ class StartupAnalysisTaskTests(unittest.TestCase):
                 self.assertEqual(result["error"], expected_error)
                 self.assertEqual(fake_run.status, "failed")
                 self.assertEqual(fake_run.critique["error"], expected_error)
+
+
+class AgentAnalysisViewTests(unittest.TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+
+    def test_stop_analysis_marks_run_cancelled_for_edit(self):
+        fake_run = FakeAgentRun(status="running")
+        fake_idea = FakeIdea(title="Chaidesk", description="Desk ops platform")
+
+        request = self.factory.post(
+            "/agent/stop/run-1/",
+            {"action": "edit"},
+            format="json",
+        )
+
+        with (
+            patch("apps.agent.views.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.views.Idea.objects", return_value=FakeQuerySet(fake_idea)),
+        ):
+            response = agent_views.stop_analysis(request, str(fake_run.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "cancelled")
+        self.assertEqual(response.data["idea_id"], fake_run.idea_id)
+        self.assertEqual(response.data["title"], "Chaidesk")
+        self.assertEqual(fake_run.status, "cancelled")
+        self.assertEqual(fake_run.execution_log[-1]["type"], "user_cancelled")
+        self.assertEqual(fake_run.execution_log[-1]["action"], "edit")
+
+    def test_stop_analysis_terminate_deletes_idea_artifacts(self):
+        fake_run = FakeAgentRun(status="running")
+        fake_idea = FakeIdea(title="Chaidesk", description="Desk ops platform")
+
+        request = self.factory.post(
+            "/agent/stop/run-1/",
+            {"action": "terminate"},
+            format="json",
+        )
+
+        with (
+            patch("apps.agent.views.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.views.Idea.objects", return_value=FakeQuerySet(fake_idea)),
+            patch("apps.agent.views.StartupAnalysisService.delete_analysis_artifacts_for_idea") as delete_artifacts,
+        ):
+            response = agent_views.stop_analysis(request, str(fake_run.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "terminated")
+        self.assertEqual(fake_run.status, "cancelled")
+        self.assertTrue(fake_idea.deleted)
+        delete_artifacts.assert_called_once_with(fake_run.idea_id)
+
+    def test_start_analysis_returns_cached_cancelled_run(self):
+        fake_run = FakeAgentRun(status="cancelled")
+        fake_run.execution_log = [{"type": "user_cancelled", "action": "new_idea"}]
+        fake_run.critique = {"message": "Analysis stopped by user."}
+
+        request = self.factory.post(
+            "/agent/start/",
+            {"idea_id": "idea-1"},
+            format="json",
+        )
+
+        with (
+            patch("apps.agent.views.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.views.IdeaAnalysis.objects", return_value=FakeQuerySet(None)),
+        ):
+            response = agent_views.start_analysis(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "cancelled")
+        self.assertEqual(response.data["mode"], "cached")
+        self.assertEqual(response.data["execution_log"], fake_run.execution_log)
+
+    def test_force_start_resumes_same_cancelled_run_from_saved_progress(self):
+        fake_run = FakeAgentRun(status="cancelled")
+        fake_run.pipeline_state = {
+            "idea_text": "Idea",
+            "plan": {"steps": [{"tool": "search_market_data"}]},
+        }
+        fake_run.execution_log = [
+            {
+                "tool": "search_market_data",
+                "status": "success",
+                "result": "cached market",
+                "iteration": 0,
+            },
+            {"type": "user_cancelled", "action": "edit"},
+        ]
+        fake_run.critique = {"cancelled_action": "edit"}
+
+        request = self.factory.post(
+            "/agent/start/",
+            {"idea_id": "idea-1", "force": True},
+            format="json",
+        )
+
+        with (
+            patch("apps.agent.views.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.views.execute_analysis_stage.delay") as execute_delay,
+        ):
+            response = agent_views.start_analysis(request)
+
+        execute_delay.assert_called_once_with(
+            str(fake_run.id),
+            iteration=0,
+            rerun_tools=None,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["agent_run_id"], str(fake_run.id))
+        self.assertEqual(response.data["status"], "running")
+        self.assertEqual(response.data["execution_log"], fake_run.execution_log)
+        self.assertEqual(fake_run.status, "running")
 
 
 if __name__ == "__main__":
