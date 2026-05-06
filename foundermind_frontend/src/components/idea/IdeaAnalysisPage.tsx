@@ -48,6 +48,7 @@ import { CustomerProfileEmpty } from "@/components/results/CustomerProfile/Custo
 import { TechStack as TechStackSection } from "@/components/results/TechStack";
 import { TechStackEmpty } from "@/components/results/TechStack/TechStackEmpty";
 import FounderActionPlanComponent from "@/components/results/FounderActionPlan";
+import { ExecutionLogUI } from "./ExecutionLogUI";
 import type { SWOTAnalysis, FounderActionPlan as FounderActionPlanType } from "@/types/analysis";
 import type { CustomerProfile as CustomerProfileData } from "@/types/analysis";
 import type { TechStack as TechStackData } from "@/types/analysis";
@@ -148,74 +149,20 @@ export default function IdeaAnalysisPage({ ideaId }: Props) {
   return (
     <main className={styles.page}>
       <div className={styles.background} />
+      <ExecutionLogUI 
+        executionLog={executionLog}
+        runStatus={status}
+        errorMessage={error}
+        onRetry={() => void startAnalysis(ideaId, { force: true })}
+        ideaTitle={runTitle}
+        ideaType={ideaType}
+      />
 
       <div className={styles.shell}>
-        <section className={styles.hero}>
-          <div className={styles.heroPanel}>
-            <span className={styles.eyebrow}>
-              <Sparkles size={14} />
-              FounderMind Agent Report
-            </span>
-
-            <h1 className={styles.title}>
-              <span className={styles.gradientText}>{runTitle}</span>
-            </h1>
-
-            <div className={styles.heroActions}>
-              <button
-                type="button"
-                className={styles.primaryAction}
-                onClick={() => void startAnalysis(ideaId, { force: true })}
-                disabled={status === "running"}
-              >
-                <RefreshCw size={16} />
-                {status === "running"
-                  ? "Running analysis"
-                  : "Run fresh analysis"}
-              </button>
-
-              <Link href="/submit" className={styles.secondaryAction}>
-                Submit another idea
-                <ArrowRight size={16} />
-              </Link>
-            </div>
-          </div>
-
-          <div className={styles.heroMetrics}>
-            <MetricTile
-              label="Run Status"
-              value={runStatusLabel}
-              hint="Live status updates while analysis is being generated."
-            />
-            <MetricTile
-              label="Idea Type"
-              value={ideaType}
-              hint="Classified before the tool pipeline starts."
-            />
-          </div>
-        </section>
-
-        {(status === "idle" || status === "running") && (
-          <LoadingState executionLog={executionLog} />
-        )}
         {status === "awaiting_clarification" && (
           <ClarificationPanel />
         )}
-        {status === "failed" && (
-          <ErrorState
-            message={error}
-            onRetry={() => void startAnalysis(ideaId, { force: true })}
-          />
-        )}
-        {status === "quota_exhausted" && !result && (
-          <ErrorState
-            message={
-              error ??
-              "Analysis paused — quota reached. Retry after rate limit resets."
-            }
-            onRetry={() => void startAnalysis(ideaId, { force: true })}
-          />
-        )}
+
         {(status === "completed" ||
           status === "partial" ||
           status === "quota_exhausted") &&
