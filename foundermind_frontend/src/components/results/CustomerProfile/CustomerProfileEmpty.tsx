@@ -81,12 +81,9 @@ export function CustomerProfileEmpty() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className="px-6 py-2.5 rounded-[10px] border border-[#6d4d9c]/80 bg-transparent text-[#977be3] font-medium text-[15px] hover:bg-[#6d4d9c]/15 transition-colors focus:ring-2 focus:ring-[#6d4d9c]/50 outline-none"
-        >
-          Retry this section
-        </button>
+        <p className="text-xs font-medium text-[#666c82]">
+          Retry controls appear below when this section can be rerun.
+        </p>
       </div>
     </div>
   );

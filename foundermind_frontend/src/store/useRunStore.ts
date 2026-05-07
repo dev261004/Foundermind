@@ -4,7 +4,7 @@ import {
   StopAnalysisAction,
   StopAnalysisResponse,
 } from "@/app/services/agentService"
-import { AgentAnalysisResponse } from "@/types/analysis"
+import { AgentAnalysisResponse, SectionStates } from "@/types/analysis"
 
 type RunStatus =
   | "idle"
@@ -18,6 +18,8 @@ type RunStatus =
 
 const RESULT_READY_STATUSES = new Set<RunStatus>(["completed", "partial", "quota_exhausted"])
 const POLL_INTERVAL_MS = 1500
+const SECTION_RETRY_POLL_INTERVAL_MS = 2000
+const SECTION_RETRY_MAX_POLL_ATTEMPTS = 90
 const ANALYSIS_POLL_WINDOW_MS = 20 * 60 * 1000
 const MAX_ANALYSIS_POLL_ATTEMPTS = Math.ceil(ANALYSIS_POLL_WINDOW_MS / POLL_INTERVAL_MS)
 const ANALYSIS_TIMEOUT_MESSAGE = "Analysis timed out after 20 minutes. Please try again."
@@ -77,6 +79,7 @@ interface RunState {
   activeRunId: string | null
   result: AgentAnalysisResponse | null
   executionLog: AgentAnalysisResponse["execution_log"]
+  sectionStates: SectionStates
   status: RunStatus
   error: string | null
   rerunCount: number
@@ -86,6 +89,7 @@ interface RunState {
   startAnalysis: (ideaId: string, options?: { force?: boolean }) => Promise<void>
   submitClarification: (runId: string, answers: Record<string, string>) => Promise<void>
   stopAnalysis: (action: StopAnalysisAction) => Promise<StopAnalysisResponse | null>
+  retrySection: (runId: string, sectionKey: string) => Promise<void>
   setFullResult: (ideaId: string | AgentAnalysisResponse, data?: AgentAnalysisResponse) => void
   incrementRerun: () => void
   markConverged: () => void
@@ -97,6 +101,7 @@ export const useRunStore = create<RunState>((set) => ({
   activeRunId: null,
   result: null,
   executionLog: [],
+  sectionStates: {},
   status: "idle",
   error: null,
   rerunCount: 0,
@@ -122,6 +127,7 @@ export const useRunStore = create<RunState>((set) => ({
         options?.force && state.activeIdeaId === ideaId
           ? state.executionLog
           : [],
+      sectionStates: {},
       status: "running",
       error: null,
       clarificationQuestions: [],
@@ -141,6 +147,7 @@ export const useRunStore = create<RunState>((set) => ({
           activeRunId: agent_run_id,
           result: null,
           executionLog: [],
+          sectionStates: {},
           status: "awaiting_clarification",
           error: null,
           clarificationQuestions: startResponse.clarification_questions ?? [],
@@ -159,6 +166,7 @@ export const useRunStore = create<RunState>((set) => ({
             current.executionLog,
             startResponse.execution_log ?? []
           ),
+          sectionStates: {},
           status: "cancelled",
           error: startResponse.critique?.message ?? null,
           rerunCount: 0,
@@ -176,6 +184,7 @@ export const useRunStore = create<RunState>((set) => ({
           activeRunId: agent_run_id,
           result: data,
           executionLog: data.execution_log ?? [],
+          sectionStates: data.section_states ?? {},
           status: startResponse.status as RunStatus,
           error: startResponse.critique?.message ?? null,
           rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
@@ -191,6 +200,7 @@ export const useRunStore = create<RunState>((set) => ({
           activeRunId: agent_run_id,
           result: null,
           executionLog: [],
+          sectionStates: {},
           status: "failed",
           error:
             startResponse.error ??
@@ -282,6 +292,7 @@ export const useRunStore = create<RunState>((set) => ({
             activeRunId: agent_run_id,
             result: data,
             executionLog: data.execution_log ?? [],
+            sectionStates: data.section_states ?? {},
             status: poll.status as RunStatus,
             error: poll.critique?.message ?? null,
             rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
@@ -323,6 +334,7 @@ export const useRunStore = create<RunState>((set) => ({
     set({
       status: "running",
       executionLog: [],
+      sectionStates: {},
       clarificationQuestions: [],
       error: null,
     })
@@ -403,6 +415,7 @@ export const useRunStore = create<RunState>((set) => ({
               activeRunId: runId,
               result: data,
               executionLog: data.execution_log ?? [],
+              sectionStates: data.section_states ?? {},
               status: poll.status as RunStatus,
               error: poll.critique?.message ?? null,
               rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
@@ -462,6 +475,67 @@ export const useRunStore = create<RunState>((set) => ({
     return response
   },
 
+  retrySection: async (runId, sectionKey) => {
+    try {
+      const startResponse = await agentService.retrySectionAnalysis(runId, sectionKey)
+
+      if (startResponse.section_states) {
+        set((current) => ({
+          sectionStates: {
+            ...current.sectionStates,
+            ...startResponse.section_states,
+          },
+        }))
+      }
+
+      if (startResponse.status === "cooldown_active") {
+        return
+      }
+
+      // Poll for section retry completion
+      for (let attempt = 0; attempt < SECTION_RETRY_MAX_POLL_ATTEMPTS; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, SECTION_RETRY_POLL_INTERVAL_MS))
+
+        const poll = await agentService.getAnalysisStatus(runId)
+
+        // Update section states from poll
+        if (poll.section_states) {
+          set((current) => ({
+            sectionStates: {
+              ...current.sectionStates,
+              ...poll.section_states,
+            },
+          }))
+        }
+
+        // Update execution log
+        set((current) => ({
+          executionLog: getStableExecutionLog(
+            current.executionLog,
+            poll.execution_log,
+          ),
+        }))
+
+        // Check if the section is no longer running
+        const sectionState = poll.section_states?.[sectionKey]
+        if (sectionState && sectionState.status !== "running") {
+          // If retry succeeded and there's updated result data, refresh it
+          if (poll.result) {
+            set({
+              result: poll.result,
+              executionLog: poll.result.execution_log ?? [],
+              sectionStates: poll.result.section_states ?? poll.section_states ?? {},
+            })
+          }
+          return
+        }
+      }
+    } catch (err: unknown) {
+      const message = (err as { message?: string })?.message ?? "Section retry failed."
+      console.error(`Section retry failed for ${sectionKey}:`, message)
+    }
+  },
+
   setFullResult: (ideaIdOrData, maybeData) => {
     const data = (typeof ideaIdOrData === "string" ? maybeData : ideaIdOrData) as AgentAnalysisResponse | undefined
     const activeIdeaId = typeof ideaIdOrData === "string" ? ideaIdOrData : null
@@ -475,6 +549,7 @@ export const useRunStore = create<RunState>((set) => ({
       activeRunId: data.agent_run_id ?? null,
       result: data,
       executionLog: data.execution_log ?? [],
+      sectionStates: data.section_states ?? {},
       status: "completed",
       error: null,
       rerunCount: data.critique?.needs_rerun ? data.critique.rerun_tools.length : 0,
@@ -495,6 +570,7 @@ export const useRunStore = create<RunState>((set) => ({
       activeRunId: null,
       result: null,
       executionLog: [],
+      sectionStates: {},
       status: "idle",
       error: null,
       rerunCount: 0,

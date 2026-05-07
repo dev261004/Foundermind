@@ -1,6 +1,6 @@
 "use client"
 
-import { Zap, FileEdit, Clock, ArrowRight } from "lucide-react"
+import { Zap, FileEdit, Clock } from "lucide-react"
 
 function Illustration() {
   return (
@@ -98,17 +98,9 @@ export function MonetizationEmpty() {
         </div>
       </div>
 
-      {/* Actions Row */}
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <button className="px-5 py-2.5 rounded-lg bg-purple-900/20 border border-[#4c3a7a] hover:bg-purple-900/30 text-[#b5a3f2] text-sm font-medium transition-all shadow-sm">
-          Retry this section
-        </button>
-
-        <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#303036] hover:bg-[#3f3f46] border border-zinc-700 text-zinc-300 text-sm font-medium transition-all shadow-sm">
-          Improve idea description
-          <ArrowRight className="w-4 h-4 text-zinc-400" />
-        </button>
-      </div>
+      <p className="text-xs text-zinc-500">
+        Retry controls appear below when this section can be rerun.
+      </p>
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/axios"
 import {
   AgentAnalysisResponse,
   AgentAnalysisStatusResponse,
+  RetrySectionResponse,
   StartAnalysisResponse,
 } from "@/types/analysis"
 
@@ -63,6 +64,13 @@ export const agentService = {
   stopAnalysis: async (runId: string, action: StopAnalysisAction): Promise<StopAnalysisResponse> => {
     const response = await apiClient.post<StopAnalysisResponse>(`/agent/stop/${runId}/`, {
       action,
+    })
+    return response.data
+  },
+
+  retrySectionAnalysis: async (runId: string, sectionKey: string): Promise<RetrySectionResponse> => {
+    const response = await apiClient.post<RetrySectionResponse>(`/agent/retry-section/${runId}/`, {
+      section_key: sectionKey,
     })
     return response.data
   },

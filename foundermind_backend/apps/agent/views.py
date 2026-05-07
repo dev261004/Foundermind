@@ -7,6 +7,10 @@ from apps.agent.tasks import (
     execute_analysis_stage,
     prepare_analysis_stage,
     run_startup_analysis,
+    retry_section_task,
+    _is_cooldown_active,
+    _SECTION_TO_TOOL,
+    _get_plan_tool_names,
 )
 from apps.agent.models import AgentRun, IdeaAnalysis
 from apps.ideas.models import Idea
@@ -214,6 +218,7 @@ def get_analysis_status(request, run_id):
         "idea_id": run.idea_id,
         "status": run.status,
         "execution_log": run.execution_log or [],
+        "section_states": run.section_states or {},
         "critique": run.critique or {},
         "confidence": getattr(run, "analysis_confidence", None),
         "iterations_used": run.iterations_used or 0,
@@ -225,6 +230,10 @@ def get_analysis_status(request, run_id):
         response["clarification_questions"] = run.clarification_questions or []
 
     if run.status in StartupAnalysisService.RESULT_AVAILABLE_STATUSES:
+        response["section_states"] = (
+            run.section_states
+            or StartupAnalysisService.compute_section_states(run)
+        )
         analysis = StartupAnalysisService._get_analysis_for_run(run)
         response["result"] = StartupAnalysisService.build_run_response(run, analysis=analysis)
 
@@ -335,4 +344,70 @@ def submit_clarification(request, run_id):
     return Response({
         "status": "running",
         "run_id": str(agent_run.id),
+    })
+
+
+@api_view(["POST"])
+def retry_section(request, run_id):
+    section_key = (request.data.get("section_key") or "").strip()
+    if not section_key:
+        return Response({"error": "Missing section_key"}, status=400)
+
+    agent_run = AgentRun.objects(id=run_id).first()
+    if not agent_run:
+        return Response({"error": "Agent run not found"}, status=404)
+
+    # Only allow retry on runs that have finished analysis
+    if agent_run.status not in StartupAnalysisService.RESULT_AVAILABLE_STATUSES:
+        return Response(
+            {"error": f"Cannot retry sections on a run with status '{agent_run.status}'"},
+            status=409,
+        )
+
+    # Validate section_key maps to a known tool
+    tool_name = _SECTION_TO_TOOL.get(section_key)
+    if not tool_name:
+        return Response(
+            {"error": f"Unknown section key: {section_key}"},
+            status=400,
+        )
+
+    # Validate tool was in the original planner plan
+    plan_tools = _get_plan_tool_names(agent_run)
+    if tool_name not in plan_tools:
+        return Response(
+            {
+                "error": (
+                    f"Tool '{tool_name}' for section '{section_key}' was not "
+                    f"in the original planner plan. Retry is only allowed for "
+                    f"planner-approved tools."
+                ),
+            },
+            status=403,
+        )
+
+    # Check cooldown
+    current_states = dict(agent_run.section_states or {})
+    existing_state = current_states.get(section_key, {})
+    if _is_cooldown_active(existing_state):
+        return Response({
+            "status": "cooldown_active",
+            "section_key": section_key,
+            "section_states": current_states,
+            "cooldown_until": existing_state.get("cooldown_until"),
+        })
+
+    # Dispatch the retry task
+    try:
+        retry_section_task.delay(str(agent_run.id), section_key)
+    except Exception:
+        retry_section_task.apply(args=[str(agent_run.id), section_key])
+
+    # Immediately return the running state
+    agent_run.reload()
+    return Response({
+        "status": "running",
+        "section_key": section_key,
+        "agent_run_id": str(agent_run.id),
+        "section_states": agent_run.section_states or {},
     })

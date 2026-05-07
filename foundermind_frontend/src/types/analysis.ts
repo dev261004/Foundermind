@@ -261,7 +261,33 @@ export interface AgentExecutionLogEntry {
   original_length?: number
   refined_length?: number
   completed_at?: string
+  section_key?: string
+  retry_attempt_id?: string
+  outcome_status?: string
+  retryable?: boolean
+  cooldown_until?: string
 }
+
+export type SectionStatus =
+  | "success"
+  | "running"
+  | "data_unavailable"
+  | "quota_exhausted"
+  | "temporary_api_error"
+  | "tool_error"
+
+export interface SectionState {
+  tool: string
+  status: SectionStatus
+  retryable: boolean
+  error_type: string | null
+  message: string
+  cooldown_until: string | null
+  last_retry_at: string | null
+  retry_attempt_id: string | null
+}
+
+export type SectionStates = Record<string, SectionState>
 
 export interface AgentAnalysisResponse {
   idea_id?: string
@@ -278,6 +304,7 @@ export interface AgentAnalysisResponse {
   models_used?: Record<string, string>
   results: AgentAnalysisResults
   execution_log: AgentExecutionLogEntry[]
+  section_states?: SectionStates
   critique: AgentCritique
 }
 
@@ -297,6 +324,7 @@ export interface AgentAnalysisStatusResponse {
   idea_id: string
   status: "pending" | "running" | "completed" | "partial" | "failed" | "quota_exhausted" | "awaiting_clarification" | "cancelled"
   execution_log: AgentExecutionLogEntry[]
+  section_states?: SectionStates
   critique?: Partial<AgentCritique> & { error?: string; message?: string }
   confidence?: number | null
   iterations_used?: number
@@ -309,4 +337,13 @@ export interface AgentAnalysisStatusResponse {
 export interface ClarificationState {
   questions: string[]
   run_id: string
+}
+
+export interface RetrySectionResponse {
+  status: "running" | "cooldown_active" | "completed" | "error"
+  section_key: string
+  agent_run_id?: string
+  section_states?: SectionStates
+  cooldown_until?: string
+  error?: string
 }

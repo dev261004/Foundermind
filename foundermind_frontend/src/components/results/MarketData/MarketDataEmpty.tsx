@@ -25,7 +25,7 @@ export function MarketDataEmpty() {
       {/* Text Content */}
       <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">Market Data Unavailable</h2>
       <p className="text-[#a1a1aa] text-[15px] max-w-2xl mx-auto mb-8 leading-relaxed">
-        The agent couldn't retrieve market sizing or research data for this idea. This may be due to
+        The agent couldn&apos;t retrieve market sizing or research data for this idea. This may be due to
         search API limits, quota exhaustion, or insufficient public data for this specific market.
       </p>
 
@@ -45,15 +45,9 @@ export function MarketDataEmpty() {
         </span>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
-        <button className="px-5 py-2.5 rounded-lg text-[14px] font-medium border border-[#6345d3]/50 text-[#a28df2] bg-[#6345d3]/10 hover:bg-[#6345d3]/20 transition-colors shadow-sm">
-          Retry market research
-        </button>
-        <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[14px] font-medium border border-[#3e3f4e] text-[#a1a1aa] hover:text-white hover:bg-white/5 transition-colors shadow-sm">
-          Refine idea description <span className="text-lg leading-none ml-1">→</span>
-        </button>
-      </div>
+      <p className="text-xs text-[#6b7280] mb-6">
+        Retry controls appear below when this section can be rerun.
+      </p>
 
     </div>
   )

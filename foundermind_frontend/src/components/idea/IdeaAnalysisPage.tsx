@@ -51,6 +51,7 @@ import type { SWOTAnalysis, FounderActionPlan as FounderActionPlanType } from "@
 import type { CustomerProfile as CustomerProfileData } from "@/types/analysis";
 import type { TechStack as TechStackData } from "@/types/analysis";
 import styles from "./IdeaAnalysisPage.module.css";
+import { SectionRetryWrapper } from "./SectionRetryWrapper";
 
 interface Props {
   ideaId: string;
@@ -322,6 +323,7 @@ function AnalysisContent({
              return (
               <DrawerSection
                 key={key}
+                sectionKey={key}
                 title={title}
                 subtitle={subtitle}
                 pill={pill}
@@ -336,6 +338,7 @@ function AnalysisContent({
           return (
             <DrawerSection
               key={key}
+              sectionKey={key}
               title={title}
               subtitle={subtitle}
               pill={pill}
@@ -363,17 +366,19 @@ function AnalysisContent({
             <details key={key} className={`${styles.drawer} group`} open={true}>
               <MarketDataHeader />
               <div className="w-full selection:bg-cyan-500/30 px-6 pb-6">
-                {hasAnyData ? (
-                  <MarketData
-                    text={rawString}
-                    quantitativeModel={
-                      result.results.market_quantitative_model ?? null
-                    }
-                    structured={result.results.market_data_structured ?? null}
-                  />
-                ) : (
-                  <MarketDataEmpty />
-                )}
+                <SectionRetryWrapper sectionKey="market_data">
+                  {hasAnyData ? (
+                    <MarketData
+                      text={rawString}
+                      quantitativeModel={
+                        result.results.market_quantitative_model ?? null
+                      }
+                      structured={result.results.market_data_structured ?? null}
+                    />
+                  ) : (
+                    <MarketDataEmpty />
+                  )}
+                </SectionRetryWrapper>
               </div>
             </details>
           );
@@ -386,6 +391,7 @@ function AnalysisContent({
             return (
               <DrawerSection
                 key={key}
+                sectionKey={key}
                 title={title}
                 subtitle={subtitle}
                 pill={pill}
@@ -401,6 +407,7 @@ function AnalysisContent({
             return (
               <DrawerSection
                 key={key}
+                sectionKey={key}
                 title={title}
                 subtitle={subtitle}
                 pill={pill}
@@ -426,6 +433,7 @@ function AnalysisContent({
           return (
             <DrawerSection
               key={key}
+              sectionKey={key}
               title={title}
               subtitle={subtitle}
               pill={pill}
@@ -464,6 +472,7 @@ function AnalysisContent({
             return (
               <DrawerSection
                 key={key}
+                sectionKey={key}
                 title={title}
                 subtitle={subtitle}
                 pill={pill}
@@ -477,10 +486,12 @@ function AnalysisContent({
 
           return (
             <div key={key} className={`${styles.drawer} mb-6`}>
-              <StrategicSWOT
-                swot={rawSwot as SWOTAnalysis}
-                ideaName={runTitle}
-              />
+              <SectionRetryWrapper sectionKey="swot">
+                <StrategicSWOT
+                  swot={rawSwot as SWOTAnalysis}
+                  ideaName={runTitle}
+                />
+              </SectionRetryWrapper>
             </div>
           );
         }
@@ -495,6 +506,7 @@ function AnalysisContent({
           return (
             <DrawerSection
               key={key}
+              sectionKey={key}
               title={title}
               subtitle={subtitle}
               pill={pill}
@@ -520,6 +532,7 @@ function AnalysisContent({
           return (
             <DrawerSection
               key={key}
+              sectionKey={key}
               title={title}
               subtitle={subtitle}
               pill={pill}
@@ -544,6 +557,7 @@ function AnalysisContent({
         return (
           <DrawerSection
             key={key}
+            sectionKey={key}
             title={title}
             subtitle={subtitle}
             pill={pill}
@@ -606,6 +620,7 @@ function DrawerSection({
   pillElement,
   defaultOpen,
   countLabel,
+  sectionKey,
   children,
 }: {
   title: string;
@@ -615,8 +630,17 @@ function DrawerSection({
   pillElement?: ReactNode;
   defaultOpen?: boolean;
   countLabel?: string;
+  sectionKey?: string;
   children: ReactNode;
 }) {
+  const body = sectionKey ? (
+    <SectionRetryWrapper sectionKey={sectionKey}>
+      {children}
+    </SectionRetryWrapper>
+  ) : (
+    children
+  );
+
   return (
     <details className={styles.drawer} open={defaultOpen}>
       <summary className={styles.drawerSummary}>
@@ -643,7 +667,7 @@ function DrawerSection({
           </div>
         </div>
       </summary>
-      <div className={styles.drawerBody}>{children}</div>
+      <div className={styles.drawerBody}>{body}</div>
     </details>
   );
 }

@@ -24,6 +24,9 @@ class AgentRun(me.Document):
     convergence_reason = me.StringField()
     iteration_scores = me.ListField(me.FloatField(), default=list)
 
+    # Section-level retry states
+    section_states = me.DictField(default=dict)
+
     # Description quality & clarification fields
     original_description = me.StringField()
     refined_description = me.StringField()

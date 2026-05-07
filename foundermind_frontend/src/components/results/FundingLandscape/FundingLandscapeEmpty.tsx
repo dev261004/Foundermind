@@ -41,12 +41,9 @@ export function FundingLandscapeEmpty() {
         </span>
       </div>
 
-      <button
-        type="button"
-        className="px-5 py-2 rounded-md bg-[#13111f]/60 border border-[#3E315D] text-[#a794e6] text-[14px] font-medium hover:bg-[#1a172c] hover:border-[#4d3a82] transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-[#a794e6]/50"
-      >
-        Retry this section
-      </button>
+      <p className="text-xs font-medium text-[#6f7383]">
+        Retry controls appear below when this section can be rerun.
+      </p>
     </div>
   );
 }

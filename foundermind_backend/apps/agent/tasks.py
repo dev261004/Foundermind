@@ -13,6 +13,14 @@ from apps.agent.reporter import ReporterAgent
 from apps.agent.services import StartupAnalysisService
 from apps.analytics.drift_detector import DriftDetector
 from apps.analytics.tool_drift_detector import ToolDriftDetector
+from apps.agent.section_outcomes import (
+    classify_tool_outcome,
+    build_running_state,
+    generate_retry_attempt_id,
+    STATUS_SUCCESS,
+    STATUS_DATA_UNAVAILABLE,
+    COOLDOWN_SECONDS,
+)
 from apps.ideas.models import Idea
 from core.exceptions import LLMQuotaExhaustedError
 
@@ -682,6 +690,7 @@ def _run_execute_stage(
     )
     results = orchestrator.enrich_results(execution_data["results"])
     _upsert_analysis_snapshot(agent_run, results)
+    StartupAnalysisService.sync_section_states(agent_run, results=results)
 
     aborted = _abort_if_cancelled(run_id)
     if aborted:
@@ -1051,8 +1060,369 @@ def idea_type_drift_monitor_task():
     return result
 
 
+
 @shared_task
 def tool_drift_monitor_task():
 
     result = ToolDriftDetector.detect_tool_drift()
     return result
+
+
+# ---------------------------------------------------------------------------
+# Section-level retry
+# ---------------------------------------------------------------------------
+
+SECTION_RETRY_SOFT_TIMEOUT_SECONDS = 180
+SECTION_RETRY_HARD_TIMEOUT_SECONDS = 240
+REPEATED_DATA_UNAVAILABLE_RETRY_THRESHOLD = 3
+REPEATED_DATA_UNAVAILABLE_MESSAGE = (
+    "Data may genuinely be unavailable for this idea. "
+    "Try refining the description for better results."
+)
+
+# Maps result section keys to their canonical tool names
+_SECTION_TO_TOOL = StartupOrchestrator.SECTION_TOOL_MAP
+
+
+def _get_plan_tool_names(agent_run: AgentRun) -> set[str]:
+    """Return the set of tool names present in the planner-approved plan."""
+    pipeline_state = dict(agent_run.pipeline_state or {})
+    plan = pipeline_state.get("plan") or {}
+    return {
+        step.get("tool")
+        for step in plan.get("steps", [])
+        if step.get("tool")
+    }
+
+
+def _update_section_state(agent_run: AgentRun, section_key: str, state: dict):
+    """Atomically update one section_state entry and persist."""
+    agent_run.reload()
+    current = dict(agent_run.section_states or {})
+    current[section_key] = state
+    agent_run.section_states = current
+    agent_run.save()
+
+
+def _is_cooldown_active(section_state: dict) -> bool:
+    """Return True if the cooldown_until timestamp is still in the future."""
+    cooldown_until = section_state.get("cooldown_until")
+    if not cooldown_until:
+        return False
+    try:
+        deadline = datetime.datetime.fromisoformat(cooldown_until)
+        return datetime.datetime.utcnow() < deadline
+    except (ValueError, TypeError):
+        return False
+
+
+def _count_section_retry_outcomes(
+    execution_log: list[dict] | None,
+    *,
+    section_key: str,
+    outcome_status: str,
+) -> int:
+    count = 0
+    for entry in execution_log or []:
+        if entry.get("type") != "section_retry":
+            continue
+        if entry.get("section_key") != section_key:
+            continue
+        if entry.get("outcome_status") != outcome_status:
+            continue
+        count += 1
+    return count
+
+
+def _run_section_retry(run_id: str, section_key: str):
+    """
+    Core logic for retrying a single section/tool.
+
+    1. Validate tool is in original planner plan
+    2. Check cooldown
+    3. Mark section as running
+    4. Execute only that tool with checkpoint context
+    5. Classify outcome
+    6. Run targeted critic for that section only
+    7. Update section_states + analysis snapshot
+    """
+    agent_run = _get_agent_run(run_id)
+
+    tool_name = _SECTION_TO_TOOL.get(section_key)
+    if not tool_name:
+        raise ValueError(f"Unknown section key: {section_key}")
+
+    plan_tools = _get_plan_tool_names(agent_run)
+    if tool_name not in plan_tools:
+        raise ValueError(
+            f"Tool {tool_name} for section {section_key} was not in the "
+            f"original planner plan. Section retry is only allowed for "
+            f"planner-approved tools."
+        )
+
+    # Check cooldown
+    current_states = dict(agent_run.section_states or {})
+    existing_state = current_states.get(section_key, {})
+    if _is_cooldown_active(existing_state):
+        return {
+            "status": "cooldown_active",
+            "section_key": section_key,
+            "section_state": existing_state,
+        }
+
+    # Generate retry attempt ID and mark section as running
+    retry_attempt_id = generate_retry_attempt_id()
+    running_state = build_running_state(tool_name, retry_attempt_id)
+    _update_section_state(agent_run, section_key, running_state)
+
+    # Log the section retry start
+    _save_execution_entry(agent_run, {
+        "type": "section_retry",
+        "tool": tool_name,
+        "section_key": section_key,
+        "status": "started",
+        "retry_attempt_id": retry_attempt_id,
+        "message": f"Retrying {tool_name} for section {section_key}.",
+        "timestamp": _timestamp(),
+    }, status=agent_run.status)  # Keep current global status
+
+    # Load pipeline context
+    pipeline_state = _load_pipeline_state(agent_run)
+    idea_text = pipeline_state.get("idea_text")
+    plan = pipeline_state.get("plan") or {}
+    if not idea_text:
+        raise ValueError("Pipeline state is missing idea_text")
+
+    executor = ToolExecutor()
+    orchestrator = StartupOrchestrator()
+
+    # Build a single-tool plan
+    single_tool_plan = {"steps": [{"tool": tool_name, "step": 1, "depends_on": []}]}
+
+    # Use existing execution log as checkpoints for context (other tools)
+    checkpoints = list(agent_run.execution_log or [])
+
+    # Execute only the target tool
+    execution_data = executor.execute_with_plan(
+        idea_text,
+        single_tool_plan,
+        log_callback=lambda entry: _save_execution_entry(
+            agent_run,
+            {**entry, "section_key": section_key, "retry_attempt_id": retry_attempt_id},
+            status=agent_run.status,
+        ),
+        update_log_callback=lambda **kwargs: _update_execution_entry(
+            agent_run,
+            updates={
+                **kwargs.get("updates", {}),
+                "section_key": section_key,
+                "retry_attempt_id": retry_attempt_id,
+            },
+            status=agent_run.status,
+            tool_name=kwargs.get("tool_name"),
+        ),
+        checkpoints=checkpoints,
+        use_checkpoints=True,
+        force_tools=[tool_name],
+        iteration=None,
+        should_abort=lambda: _is_cancelled(run_id),
+    )
+
+    tool_output = execution_data["results"].get(
+        executor.RESULT_KEY_MAP.get(tool_name, section_key)
+    )
+
+    # Check if tool failed (look at latest execution log entry)
+    tool_error = None
+    tool_error_type = None
+    for entry in reversed(agent_run.reload().execution_log or []):
+        if entry.get("tool") == tool_name and entry.get("retry_attempt_id") == retry_attempt_id:
+            if entry.get("status") == "failed":
+                error_msg = entry.get("error", "Unknown error")
+                tool_error_type = entry.get("error_type")
+                tool_error = Exception(error_msg)
+            break
+
+    # Classify the outcome
+    outcome = classify_tool_outcome(
+        tool_name,
+        tool_output,
+        error=tool_error,
+        error_type_name=tool_error_type,
+    )
+    outcome["retry_attempt_id"] = retry_attempt_id
+
+    if outcome["status"] == STATUS_DATA_UNAVAILABLE:
+        previous_data_unavailable_retries = _count_section_retry_outcomes(
+            agent_run.execution_log or [],
+            section_key=section_key,
+            outcome_status=STATUS_DATA_UNAVAILABLE,
+        )
+        if previous_data_unavailable_retries + 1 >= REPEATED_DATA_UNAVAILABLE_RETRY_THRESHOLD:
+            outcome["message"] = REPEATED_DATA_UNAVAILABLE_MESSAGE
+
+    # Update the analysis snapshot for this section only
+    if outcome["status"] == STATUS_SUCCESS:
+        enriched = orchestrator.enrich_results(execution_data["results"])
+        # Merge with existing results — only update the retried section
+        existing_results = StartupAnalysisService._build_results_from_execution_log(
+            agent_run.execution_log or []
+        )
+        existing_enriched = orchestrator.enrich_results(existing_results)
+        result_key = executor.RESULT_KEY_MAP.get(tool_name, section_key)
+        existing_enriched[result_key] = enriched.get(result_key)
+        # If market_data was retried, also update quantitative model
+        if section_key == "market_data":
+            existing_enriched["market_quantitative_model"] = enriched.get(
+                "market_quantitative_model"
+            )
+        _upsert_analysis_snapshot(agent_run, existing_enriched)
+
+    # Run targeted critic for this section only
+    _run_targeted_critic(agent_run, section_key, tool_name, retry_attempt_id, orchestrator)
+
+    # Persist final section state
+    _update_section_state(agent_run, section_key, outcome)
+
+    # Log section retry completion
+    final_status = outcome["status"]
+    _save_execution_entry(agent_run, {
+        "type": "section_retry",
+        "tool": tool_name,
+        "section_key": section_key,
+        "status": "completed" if final_status == STATUS_SUCCESS else final_status,
+        "retry_attempt_id": retry_attempt_id,
+        "outcome_status": final_status,
+        "retryable": outcome["retryable"],
+        "cooldown_until": outcome.get("cooldown_until"),
+        "message": outcome["message"],
+        "timestamp": _timestamp(),
+    }, status=agent_run.status)  # Keep current global status
+
+    return {
+        "status": "completed",
+        "section_key": section_key,
+        "section_state": outcome,
+    }
+
+
+def _run_targeted_critic(
+    agent_run: AgentRun,
+    section_key: str,
+    tool_name: str,
+    retry_attempt_id: str,
+    orchestrator: StartupOrchestrator,
+):
+    """
+    Run a targeted critic pass for only the retried section.
+    Updates the section_scores in the run's critique for that section only.
+    """
+    pipeline_state = _load_pipeline_state(agent_run)
+    idea_text = pipeline_state.get("idea_text")
+    if not idea_text:
+        return
+
+    results = _restore_enriched_results(agent_run, orchestrator)
+
+    # Log critic start
+    _save_execution_entry(agent_run, {
+        "type": "section_retry_critic",
+        "agent": "critic",
+        "section_key": section_key,
+        "tool": tool_name,
+        "status": "started",
+        "retry_attempt_id": retry_attempt_id,
+        "message": f"Running targeted critic review for {section_key}.",
+        "timestamp": _timestamp(),
+    }, status=agent_run.status)
+
+    try:
+        critique, critic_model = orchestrator.review_results(idea_text, results)
+
+        # Only update the section score for the retried section
+        agent_run.reload()
+        existing_critique = dict(agent_run.critique or {})
+        existing_sections = dict(existing_critique.get("section_scores", {}))
+
+        new_section_score = critique.get("section_scores", {}).get(section_key)
+        if new_section_score is not None:
+            existing_sections[section_key] = new_section_score
+            existing_critique["section_scores"] = existing_sections
+
+        # Limit rerun_tools to only the retried tool
+        new_rerun = critique.get("rerun_tools", [])
+        existing_critique["rerun_tools"] = [
+            t for t in new_rerun if t == tool_name
+        ]
+        existing_critique["needs_rerun"] = bool(existing_critique["rerun_tools"])
+
+        agent_run.critique = existing_critique
+        agent_run.save()
+
+        _update_execution_entry(
+            agent_run,
+            updates={
+                "status": "completed",
+                "model_used": critic_model,
+                "section_score": new_section_score,
+                "message": f"Targeted critic scored {section_key}: {new_section_score}.",
+                "completed_at": _timestamp(),
+            },
+            status=agent_run.status,
+            agent_name="critic",
+        )
+
+    except Exception as exc:
+        _update_execution_entry(
+            agent_run,
+            updates={
+                "status": "failed",
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "message": f"Targeted critic for {section_key} failed: {exc}",
+                "completed_at": _timestamp(),
+            },
+            status=agent_run.status,
+            agent_name="critic",
+        )
+
+
+@shared_task(
+    bind=True,
+    soft_time_limit=SECTION_RETRY_SOFT_TIMEOUT_SECONDS,
+    time_limit=SECTION_RETRY_HARD_TIMEOUT_SECONDS,
+)
+def retry_section_task(self, run_id: str, section_key: str):
+    """Celery task wrapper for section-level retry."""
+    try:
+        return _run_section_retry(run_id, section_key)
+    except SoftTimeLimitExceeded:
+        agent_run = _get_agent_run(run_id)
+        error_state = classify_tool_outcome(
+            _SECTION_TO_TOOL.get(section_key, section_key),
+            None,
+            error=Exception("Section retry timed out"),
+            error_type_name="TimeoutError",
+        )
+        _update_section_state(agent_run, section_key, error_state)
+        return {
+            "status": "timeout",
+            "section_key": section_key,
+            "section_state": error_state,
+        }
+    except Exception as exc:
+        try:
+            agent_run = _get_agent_run(run_id)
+            error_state = classify_tool_outcome(
+                _SECTION_TO_TOOL.get(section_key, section_key),
+                None,
+                error=exc,
+            )
+            _update_section_state(agent_run, section_key, error_state)
+        except Exception:
+            pass
+        return {
+            "status": "error",
+            "section_key": section_key,
+            "error": str(exc),
+        }

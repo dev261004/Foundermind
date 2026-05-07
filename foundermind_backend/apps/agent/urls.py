@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     get_analysis_status,
+    retry_section,
     run_analysis,
     start_analysis,
     stop_analysis,
@@ -13,4 +14,5 @@ urlpatterns = [
     path("status/<str:run_id>/", get_analysis_status),
     path("stop/<str:run_id>/", stop_analysis),
     path("clarify/<str:run_id>/", submit_clarification),
+    path("retry-section/<str:run_id>/", retry_section),
 ]

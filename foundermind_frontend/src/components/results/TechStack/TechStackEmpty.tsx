@@ -1,7 +1,6 @@
 "use client";
 
-import { Cpu, RefreshCw } from "lucide-react";
-import { motion } from "framer-motion";
+import { Cpu } from "lucide-react";
 
 export function TechStackEmpty() {
   return (
@@ -16,16 +15,9 @@ export function TechStackEmpty() {
         The agent needs more context to recommend an appropriate tech stack. Try
         providing more details about the product&apos;s scope and scale.
       </p>
-      <motion.button
-        type="button"
-        initial={{ y: 10, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.4, duration: 0.5 }}
-        className="flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-full bg-white text-neutral-950 hover:bg-neutral-200 text-[13px] font-semibold transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 group/btn"
-      >
-        <RefreshCw className="w-4 h-4 text-indigo-600 group-hover/btn:text-indigo-700 transition-colors" />
-        Retry analysis
-      </motion.button>
+      <p className="text-xs text-gray-600">
+        Retry controls appear below when this section can be rerun.
+      </p>
     </div>
   );
 }

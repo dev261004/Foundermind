@@ -3,6 +3,7 @@ import json
 from apps.agent.models import AgentRun, IdeaAnalysis
 from apps.ideas.models import Idea
 from apps.agent.executor import ToolExecutor
+from apps.agent.section_outcomes import classify_tool_outcome
 
 
 class StartupAnalysisService:
@@ -57,6 +58,116 @@ class StartupAnalysisService:
             return json.loads(value)
         except (json.JSONDecodeError, TypeError, ValueError):
             return value
+
+    @staticmethod
+    def _build_planned_section_map(agent_run) -> dict[str, str]:
+        pipeline_state = dict(agent_run.pipeline_state or {})
+        plan = pipeline_state.get("plan") or {}
+        section_map: dict[str, str] = {}
+
+        for step in plan.get("steps", []):
+            tool_name = step.get("tool")
+            section_key = ToolExecutor.RESULT_KEY_MAP.get(tool_name)
+            if tool_name and section_key:
+                section_map[section_key] = tool_name
+
+        return section_map
+
+    @staticmethod
+    def _find_latest_tool_entry(execution_log, tool_name: str):
+        for entry in reversed(execution_log or []):
+            if entry.get("tool") != tool_name:
+                continue
+
+            status = entry.get("status")
+            if status == "started":
+                continue
+
+            if status == "skipped" and entry.get("reason") == "not_requested_for_rerun":
+                continue
+
+            return entry
+
+        return None
+
+    @staticmethod
+    def _strip_retry_metadata(section_state: dict) -> dict:
+        # Full analysis results should be retryable immediately; cooldowns are only
+        # applied after an explicit section retry attempt fails again.
+        return {
+            **section_state,
+            "cooldown_until": None,
+            "last_retry_at": None,
+            "retry_attempt_id": None,
+        }
+
+    @staticmethod
+    def compute_section_states(agent_run, results=None):
+        current_states = dict(agent_run.section_states or {})
+        planned_sections = StartupAnalysisService._build_planned_section_map(agent_run)
+        if not planned_sections:
+            return current_states
+
+        resolved_results = (
+            dict(results)
+            if isinstance(results, dict)
+            else StartupAnalysisService._build_results_from_execution_log(
+                agent_run.execution_log or []
+            )
+        )
+
+        computed_states: dict[str, dict] = {}
+        for section_key, tool_name in planned_sections.items():
+            existing_state = current_states.get(section_key)
+            if existing_state and existing_state.get("status") == "running":
+                computed_states[section_key] = existing_state
+                continue
+
+            latest_entry = StartupAnalysisService._find_latest_tool_entry(
+                agent_run.execution_log or [],
+                tool_name,
+            )
+            latest_output = resolved_results.get(section_key)
+
+            if latest_entry:
+                latest_status = latest_entry.get("status")
+                if latest_status == "failed":
+                    error_message = (
+                        latest_entry.get("error")
+                        or latest_entry.get("message")
+                        or f"{tool_name} failed."
+                    )
+                    computed_states[section_key] = StartupAnalysisService._strip_retry_metadata(
+                        classify_tool_outcome(
+                            tool_name,
+                            None,
+                            error=Exception(error_message),
+                            error_type_name=latest_entry.get("error_type"),
+                        )
+                    )
+                    continue
+
+                if latest_output is None and latest_entry.get("result") is not None:
+                    latest_output = StartupAnalysisService._deserialize_result(
+                        section_key,
+                        latest_entry.get("result"),
+                    )
+
+            computed_states[section_key] = StartupAnalysisService._strip_retry_metadata(
+                classify_tool_outcome(tool_name, latest_output)
+            )
+
+        return computed_states
+
+    @staticmethod
+    def sync_section_states(agent_run, results=None):
+        agent_run.reload()
+        agent_run.section_states = StartupAnalysisService.compute_section_states(
+            agent_run,
+            results=results,
+        )
+        agent_run.save()
+        return agent_run.section_states
 
     @staticmethod
     def _normalize_similar_startups(value) -> list[dict]:
@@ -183,6 +294,18 @@ class StartupAnalysisService:
             if idea:
                 idea_title = idea.title
 
+        response_results = StartupAnalysisService._build_response_results(
+            analysis,
+            fallback_results,
+        )
+        section_states = (
+            agent_run.section_states
+            or StartupAnalysisService.compute_section_states(
+                agent_run,
+                results=response_results,
+            )
+        )
+
         return {
             "idea_id": agent_run.idea_id,
             "idea_title": idea_title,
@@ -202,11 +325,9 @@ class StartupAnalysisService:
             "convergence_reason": agent_run.convergence_reason,
             "iteration_scores": agent_run.iteration_scores or [],
             "models_used": agent_run.models_used or {},
-            "results": StartupAnalysisService._build_response_results(
-                analysis,
-                fallback_results,
-            ),
+            "results": response_results,
             "execution_log": agent_run.execution_log or [],
+            "section_states": section_states,
             "critique": {
                 "overall_score": critique.get("overall_score", 0),
                 "section_scores": critique.get("section_scores", {}),

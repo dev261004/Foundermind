@@ -26,13 +26,14 @@ class FakeQuerySet:
 
 
 class FakeAgentRun:
-    def __init__(self, *, execution_log=None, pipeline_state=None, status="pending"):
+    def __init__(self, *, execution_log=None, pipeline_state=None, status="pending", section_states=None):
         self.id = "run-1"
         self.idea_id = "idea-1"
         self.execution_log = execution_log or []
         self.pipeline_state = pipeline_state or {}
         self.models_used = {}
         self.status = status
+        self.section_states = section_states or {}
         self.critique = None
         self.report_summary = None
         self.idea_type = None
@@ -401,6 +402,97 @@ class StartupAnalysisTaskTests(unittest.TestCase):
         upsert_snapshot.assert_called_once_with(fake_run, enriched_results)
         queue_review.assert_called_once_with(str(fake_run.id), iteration=0, inline=False)
         self.assertEqual(result["status"], "running")
+        self.assertEqual(fake_run.section_states["market_data"]["status"], "success")
+        self.assertIsNone(fake_run.section_states["market_data"]["cooldown_until"])
+
+    def test_build_run_response_computes_retryable_section_states_for_existing_runs(self):
+        fake_run = FakeAgentRun(
+            execution_log=[
+                {
+                    "tool": "search_market_data",
+                    "status": "success",
+                    "result": "",
+                },
+                {
+                    "tool": "search_funding_info",
+                    "status": "failed",
+                    "error": "API timeout",
+                    "error_type": "TimeoutError",
+                },
+                {
+                    "tool": "suggest_tech_stack",
+                    "status": "skipped",
+                    "reason": "not_requested_for_rerun",
+                },
+            ],
+            pipeline_state={
+                "plan": {
+                    "steps": [
+                        {"tool": "search_market_data"},
+                        {"tool": "search_funding_info"},
+                    ]
+                }
+            },
+            status="partial",
+        )
+
+        with patch("apps.agent.services.Idea.objects", return_value=FakeQuerySet(None)):
+            response = tasks.StartupAnalysisService.build_run_response(fake_run, analysis=object())
+
+        market_state = response["section_states"]["market_data"]
+        funding_state = response["section_states"]["funding_info"]
+
+        self.assertEqual(market_state["status"], "data_unavailable")
+        self.assertTrue(market_state["retryable"])
+        self.assertIsNone(market_state["cooldown_until"])
+        self.assertIsNone(market_state["last_retry_at"])
+
+        self.assertEqual(funding_state["status"], "temporary_api_error")
+        self.assertTrue(funding_state["retryable"])
+        self.assertIsNone(funding_state["cooldown_until"])
+        self.assertNotIn("tech_stack", response["section_states"])
+
+    def test_section_retry_uses_refine_message_after_third_data_unavailable_retry(self):
+        fake_run = FakeAgentRun(
+            execution_log=[
+                {
+                    "type": "section_retry",
+                    "section_key": "market_data",
+                    "outcome_status": "data_unavailable",
+                },
+                {
+                    "type": "section_retry",
+                    "section_key": "market_data",
+                    "outcome_status": "data_unavailable",
+                },
+            ],
+            pipeline_state={
+                "idea_text": "Idea",
+                "plan": {"steps": [{"tool": "search_market_data"}]},
+            },
+            status="partial",
+        )
+        execution_data = {"results": {"market_data": ""}}
+
+        with (
+            patch("apps.agent.tasks.AgentRun.objects", return_value=FakeQuerySet(fake_run)),
+            patch("apps.agent.tasks.ToolExecutor.execute_with_plan", return_value=execution_data),
+            patch("apps.agent.tasks.StartupOrchestrator.review_results", return_value=({}, None)),
+            patch("apps.agent.tasks._update_execution_entry"),
+        ):
+            result = tasks._run_section_retry(str(fake_run.id), "market_data")
+
+        self.assertEqual(result["section_state"]["status"], "data_unavailable")
+        self.assertEqual(
+            result["section_state"]["message"],
+            "Data may genuinely be unavailable for this idea. "
+            "Try refining the description for better results.",
+        )
+        self.assertEqual(
+            fake_run.section_states["market_data"]["message"],
+            "Data may genuinely be unavailable for this idea. "
+            "Try refining the description for better results.",
+        )
 
     def test_review_stage_queues_next_execute_iteration_when_rerun_is_needed(self):
         fake_run = FakeAgentRun(

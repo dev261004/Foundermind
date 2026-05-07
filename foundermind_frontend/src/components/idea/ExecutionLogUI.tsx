@@ -214,11 +214,10 @@ export function ExecutionLogUI({
       }
     }
 
-    const finishedStatuses = new Set(["completed", "success", "failed", "skipped", "cancelled", "awaiting_clarification"])
+    const finishedStatuses = new Set(["completed", "success", "failed", "skipped", "cancelled", "awaiting_clarification", "data_unavailable", "quota_exhausted", "temporary_api_error", "tool_error"])
     const isCompleted =
       normalizedStatus === "completed" ||
       normalizedStatus === "cancelled" ||
-      index < executionLog.length - 1 ||
       finishedStatuses.has(entry.status ?? "")
 
     return {
@@ -429,28 +428,24 @@ export function ExecutionLogUI({
 
               {timelineEvents.map((event, index) => {
                 const isCompleted = event.isCompleted
-                const isLastStarted = !isCompleted && (index === 0 || timelineEvents[index - 1]?.isCompleted)
-                const isPending = !isCompleted && !isLastStarted
 
                 return (
                   <div key={event.id} className="group relative pl-8">
                     <span className="absolute left-[-13px] top-0.5 flex h-6 w-6 items-center justify-center rounded-full border-[4px] border-[#0c0c0e] bg-[#0c0c0e] shadow-[0_0_0_2px_#0c0c0e]">
                       {isCompleted ? (
                         <CheckCircle className="h-full w-full text-zinc-600" />
-                      ) : isLastStarted ? (
-                        <CircleDashed className="h-full w-full animate-[spin_3s_linear_infinite] text-indigo-500" />
                       ) : (
-                        <Circle className="h-full w-full text-zinc-800" />
+                        <CircleDashed className="h-full w-full animate-[spin_3s_linear_infinite] text-indigo-500" />
                       )}
                     </span>
 
                     <div className="mt-[-4px] flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                      <div className={isPending ? "opacity-50" : "opacity-100"}>
+                      <div className="opacity-100">
                         <div className="mb-1.5 flex items-center gap-3">
-                          <h4 className={`text-sm font-medium ${isCompleted ? "text-zinc-300" : isLastStarted ? "text-indigo-400" : "text-zinc-500"}`}>
+                          <h4 className={`text-sm font-medium ${isCompleted ? "text-zinc-300" : "text-indigo-400"}`}>
                             {event.title}
                           </h4>
-                          {isLastStarted && (
+                          {!isCompleted && (
                             <span className="rounded border border-indigo-500/20 bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest text-indigo-400">
                               Running
                             </span>
@@ -461,7 +456,7 @@ export function ExecutionLogUI({
                             </span>
                           )}
                         </div>
-                        <p className={`mt-1 text-[13px] font-mono leading-relaxed ${isLastStarted ? "text-zinc-400" : "text-zinc-500"}`}>
+                        <p className={`mt-1 text-[13px] font-mono leading-relaxed ${!isCompleted ? "text-zinc-400" : "text-zinc-500"}`}>
                           {event.description}
                         </p>
                       </div>
