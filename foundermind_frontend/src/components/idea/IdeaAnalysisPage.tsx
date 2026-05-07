@@ -9,6 +9,7 @@ import {
   BrainCircuit,
   ChevronDown,
   CircleAlert,
+  Download,
   Layers3,
   Loader2,
   Sparkles,
@@ -46,6 +47,11 @@ import { CustomerProfileEmpty } from "@/components/results/CustomerProfile/Custo
 import { TechStack as TechStackSection } from "@/components/results/TechStack";
 import { TechStackEmpty } from "@/components/results/TechStack/TechStackEmpty";
 import FounderActionPlanComponent from "@/components/results/FounderActionPlan";
+import AnalysisPDFTemplate from "@/components/results/AnalysisPDFTemplate";
+import {
+  ANALYSIS_PDF_ELEMENT_ID,
+  downloadAnalysisPdf,
+} from "@/components/results/analysisPdf";
 import { ExecutionLogUI } from "./ExecutionLogUI";
 import type { SWOTAnalysis, FounderActionPlan as FounderActionPlanType } from "@/types/analysis";
 import type { CustomerProfile as CustomerProfileData } from "@/types/analysis";
@@ -226,6 +232,8 @@ function AnalysisContent({
   bannerMessage?: string | null;
 }) {
   const ideaInput = useIdeaStore((state) => state.ideaInput);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const runTitle =
     result.idea_title ||
     ideaInput?.trim() ||
@@ -252,6 +260,27 @@ function AnalysisContent({
         return typeof value === "string" && value.trim().length > 0;
       });
 
+  const handleDownloadReport = async () => {
+    if (isGeneratingPdf) {
+      return;
+    }
+
+    setDownloadError(null);
+    setIsGeneratingPdf(true);
+
+    try {
+      await downloadAnalysisPdf(ANALYSIS_PDF_ELEMENT_ID, runTitle);
+    } catch (error) {
+      setDownloadError(
+        error instanceof Error
+          ? error.message
+          : "PDF generation failed. Please try again.",
+      );
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   return (
     <div className={styles.sectionStack}>
       {status !== "completed" && (
@@ -265,6 +294,45 @@ function AnalysisContent({
           }
         />
       )}
+
+      <AnalysisPDFTemplate
+        result={result}
+        ideaName={runTitle}
+        status={status}
+      />
+
+      <section className={styles.reportExportPanel}>
+        <div>
+          <span className={styles.reportExportEyebrow}>Full Report PDF</span>
+          <h2 className={styles.reportExportTitle}>Download Analysis Report</h2>
+          <p className={styles.reportExportText}>
+            Export this saved analysis as a professional document with a table
+            of contents, structured sections, and clickable source links.
+          </p>
+          {downloadError && (
+            <p className={styles.reportExportError}>{downloadError}</p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className={styles.reportExportButton}
+          onClick={() => void handleDownloadReport()}
+          disabled={isGeneratingPdf}
+        >
+          {isGeneratingPdf ? (
+            <>
+              <Loader2 size={16} className={styles.reportExportSpinner} />
+              Generating PDF...
+            </>
+          ) : (
+            <>
+              <Download size={16} />
+              Download Full Report (.pdf)
+            </>
+          )}
+        </button>
+      </section>
 
       {(() => {
         const executiveSummary = result.report_summary?.trim() ?? "";
