@@ -531,5 +531,6 @@ class StartupOrchestrator:
             "execution_log": execution_log,
             "critique": critique,
             "report_summary": report["summary"],
+            "action_plan": report["action_plan"],
             "status": "partial" if self.has_failed_tools(execution_log) else "completed",
         }

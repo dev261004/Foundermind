@@ -845,7 +845,7 @@ def _run_report_stage(run_id: str):
     persist_log_entry({
         "agent": "reporter",
         "status": "started",
-        "message": "Synthesizing the founder-facing summary.",
+        "message": "Synthesizing the executive summary and founder action plan.",
         "timestamp": _timestamp(),
     })
 
@@ -860,7 +860,7 @@ def _run_report_stage(run_id: str):
             updates={
                 "status": "completed",
                 "model_used": reporter_result["model_used"],
-                "message": "Reporter generated the founder action plan.",
+                "message": "Reporter generated the executive summary and founder action plan.",
                 "completed_at": _timestamp(),
             },
         )
@@ -906,14 +906,14 @@ def _run_report_stage(run_id: str):
     _upsert_analysis_snapshot(
         agent_run,
         results,
-        report_summary=reporter_result["action_plan"].get("horizon", ""),
+        report_summary=reporter_result.get("summary", ""),
         action_plan=reporter_result["action_plan"],
     )
 
     agent_run.reload()
     final_status = "partial" if _tool_failures_present(agent_run) else "completed"
     agent_run.status = final_status
-    agent_run.report_summary = reporter_result["action_plan"].get("horizon", "")
+    agent_run.report_summary = reporter_result.get("summary", "")
     agent_run.idea_type = classification.get("idea_type")
     agent_run.classification_confidence = classification.get(
         "classification_confidence"

@@ -1,3 +1,4 @@
+import json
 import time
 import unittest
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from apps.agent import tasks
 from apps.agent import views as agent_views
 from apps.agent.executor import ToolExecutor
 from apps.agent.orchestrator import StartupOrchestrator
+from apps.agent.reporter import ReporterAgent
 
 
 class FakeQuerySet:
@@ -69,6 +71,73 @@ class FakeIdea:
 
     def delete(self):
         self.deleted = True
+
+
+class ReporterAgentTests(unittest.TestCase):
+    def test_generate_report_returns_summary_and_action_plan_from_payload(self):
+        raw_response = json.dumps(
+            {
+                "summary": (
+                    "This AI concierge idea has credible hospitality demand, but its first beachhead still "
+                    "needs sharper validation. With a 7.4 opportunity score and comparable pressure from "
+                    "Frontdesk AI, the founder should prove willingness to pay before broadening the product."
+                ),
+                "action_plan": {
+                    "horizon": "Act now while hospitality operators are still testing lightweight AI workflows.",
+                    "actions": [
+                        {
+                            "priority": 1,
+                            "title": "Run pricing calls",
+                            "what": "Interview five boutique hotel operators about concierge automation pricing.",
+                            "why": "Frontdesk AI already competes for this budget, so willingness to pay needs validation.",
+                            "timeframe": "This Week",
+                            "category": "Validation",
+                        },
+                        {
+                            "priority": 2,
+                            "title": "Narrow pilot segment",
+                            "what": "Focus the product on boutique properties with lean front-desk staffing.",
+                            "why": "The market opportunity score is strongest when the staffing pain is acute.",
+                            "timeframe": "This Month",
+                            "category": "Product",
+                        },
+                        {
+                            "priority": 3,
+                            "title": "Ship waitlist funnel",
+                            "what": "Launch a waitlist page targeting independent hotels in two test cities.",
+                            "why": "This creates real demand evidence before a broader buildout.",
+                            "timeframe": "Next 90 Days",
+                            "category": "Growth",
+                        },
+                        {
+                            "priority": 4,
+                            "title": "Prepare founder sales",
+                            "what": "Build a concise demo and outbound list for founder-led customer discovery.",
+                            "why": "The idea still needs proof of conversion, not just product ambition.",
+                            "timeframe": "Next 6 Months",
+                            "category": "Revenue",
+                        },
+                    ],
+                },
+            }
+        )
+
+        with patch("apps.agent.reporter.call_llm", return_value=raw_response):
+            report = ReporterAgent().generate_report(
+                "AI concierge for boutique hotels",
+                {
+                    "market_data": {"opportunity_score": 7.4},
+                    "similar_startups": [{"company_name": "Frontdesk AI"}],
+                },
+                [],
+            )
+
+        self.assertIn("Frontdesk AI", report["summary"])
+        self.assertEqual(
+            report["action_plan"]["horizon"],
+            "Act now while hospitality operators are still testing lightweight AI workflows.",
+        )
+        self.assertEqual(len(report["action_plan"]["actions"]), 4)
 
 
 class ToolExecutorTests(unittest.TestCase):
@@ -588,6 +657,7 @@ class StartupAnalysisTaskTests(unittest.TestCase):
             },
         )
         reporter_result = {
+            "summary": "Strong market interest exists, but the founder should validate the first segment before scaling.",
             "action_plan": {"horizon": "Act now", "actions": []},
             "model_used": "reporter-model",
         }
@@ -603,12 +673,15 @@ class StartupAnalysisTaskTests(unittest.TestCase):
         upsert_snapshot.assert_called_once_with(
             fake_run,
             {"market_data": "Market"},
-            report_summary="Act now",
+            report_summary="Strong market interest exists, but the founder should validate the first segment before scaling.",
             action_plan={"horizon": "Act now", "actions": []},
         )
         self.assertEqual(result["status"], "completed")
         self.assertEqual(fake_run.status, "completed")
-        self.assertEqual(fake_run.report_summary, "Act now")
+        self.assertEqual(
+            fake_run.report_summary,
+            "Strong market interest exists, but the founder should validate the first segment before scaling.",
+        )
         self.assertEqual(fake_run.models_used["reporter"], "reporter-model")
 
     def test_stage_timeout_limits_match_constants(self):

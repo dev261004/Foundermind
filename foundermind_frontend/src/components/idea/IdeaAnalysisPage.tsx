@@ -267,6 +267,50 @@ function AnalysisContent({
       )}
 
       {(() => {
+        const executiveSummary = result.report_summary?.trim() ?? "";
+        const hasExecutiveSummary = executiveSummary.length > 0;
+
+        return (
+          <details className={styles.drawer} open>
+            <summary className={styles.drawerSummary}>
+              <div className={styles.drawerHeading}>
+                <div>
+                  <h2 className={styles.cardTitle}>Executive Summary</h2>
+                  <span className={styles.cardSubtitle}>
+                    Concise founder-facing synthesis of the opportunity, core
+                    risk, and sharpest next move.
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span className={styles.statusPill}>
+                    <Sparkles size={14} />
+                    Summary
+                  </span>
+                  <span className={styles.drawerToggle}>
+                    <ChevronDown size={18} />
+                  </span>
+                </div>
+              </div>
+            </summary>
+            <div className={styles.drawerBody}>
+              {hasExecutiveSummary ? (
+                <div className={styles.summaryPanel}>
+                  <SectionRenderer text={executiveSummary} />
+                </div>
+              ) : (
+                <div className={styles.unavailablePanel}>
+                  <h3 className={styles.unavailableTitle}>Not Available</h3>
+                  <p className={styles.unavailableText}>
+                    Executive summary could not be generated for this run.
+                  </p>
+                </div>
+              )}
+            </div>
+          </details>
+        );
+      })()}
+
+      {(() => {
         const actionPlan = result.action_plan;
         const hasActions = actionPlan && Array.isArray(actionPlan.actions) && actionPlan.actions.length > 0;
 

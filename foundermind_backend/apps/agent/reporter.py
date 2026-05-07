@@ -16,6 +16,13 @@ SAFE_FALLBACK_PLAN = {
 }
 
 
+def _build_fallback_report() -> dict:
+    return {
+        "summary": "",
+        "action_plan": dict(SAFE_FALLBACK_PLAN),
+    }
+
+
 def _extract_context(results: dict) -> str:
     """Build compact context string from analysis results for the reporter prompt."""
     parts = []
@@ -87,8 +94,8 @@ def _extract_context(results: dict) -> str:
     return "\n".join(parts) if parts else "No structured analysis data available."
 
 
-def _parse_action_plan(raw_text: str) -> dict:
-    """Parse JSON action plan from LLM response, stripping code fences."""
+def _parse_report_payload(raw_text: str) -> dict:
+    """Parse JSON report payload from LLM response, stripping code fences."""
     text = raw_text.strip()
     if text.startswith("```"):
         lines = text.split("\n")
@@ -98,8 +105,8 @@ def _parse_action_plan(raw_text: str) -> dict:
     try:
         return json.loads(text)
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        logger.warning("Failed to parse action plan JSON: %s", exc)
-        return dict(SAFE_FALLBACK_PLAN)
+        logger.warning("Failed to parse report payload JSON: %s", exc)
+        return _build_fallback_report()
 
 
 def _sanitize_action_plan(plan: dict) -> dict:
@@ -144,31 +151,65 @@ def _sanitize_action_plan(plan: dict) -> dict:
     }
 
 
+def _sanitize_summary(summary: object, *, action_plan: dict) -> str:
+    text = " ".join(str(summary or "").split()).strip()
+    if text:
+        return text[:700]
+
+    fallback = " ".join(str(action_plan.get("horizon", "")).split()).strip()
+    return fallback[:700]
+
+
+def _sanitize_report_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return _build_fallback_report()
+
+    raw_action_plan = payload.get("action_plan")
+    if isinstance(raw_action_plan, dict):
+        action_plan = _sanitize_action_plan(raw_action_plan)
+    else:
+        # Backward compatibility for any older prompt shape that returned only the plan object.
+        action_plan = _sanitize_action_plan(payload)
+
+    summary = _sanitize_summary(payload.get("summary"), action_plan=action_plan)
+    return {
+        "summary": summary,
+        "action_plan": action_plan,
+    }
+
+
 class ReporterAgent:
     UNAVAILABLE_NOTE = "[Section unavailable — could not be retrieved]"
 
     def generate_report(self, idea: str, results: dict, execution_log: list[dict]):
         context = _extract_context(results)
 
-        prompt = f"""You are a senior startup strategist who has just reviewed a complete AI analysis of a startup idea. Your job is to produce a prioritized action plan for the founder — not a summary of what was found, but a directive list of what to do next.
+        prompt = f"""You are a senior startup strategist who has just reviewed a complete AI analysis of a startup idea. Your job is to produce both:
+1. a crisp executive summary for the founder
+2. a prioritized action plan that tells the founder what to do next
 
 Return a JSON object with exactly this shape:
 {{
-  "horizon": "one sentence describing the overall strategic moment this founder is in — reference the specific idea, market timing, or biggest risk. Never generic.",
-  "actions": [
-    {{
-      "priority": 1,
-      "title": "3-6 word action title",
-      "what": "One sentence — exactly what the founder should do",
-      "why": "One sentence — which specific finding from the analysis makes this urgent. Must reference a concrete data point, competitor name, score, or insight — never vague reasoning",
-      "timeframe": "one of: This Week, This Month, Next 90 Days, Next 6 Months",
-      "category": "one of: Revenue, Defense, Growth, Product, Validation, Hiring"
-    }}
-  ]
+  "summary": "2-3 sentences that synthesize the opportunity, the biggest risk, and the most important next move for this idea. Must be specific to the analysis and reference at least one concrete detail.",
+  "action_plan": {{
+    "horizon": "one sentence describing the overall strategic moment this founder is in — reference the specific idea, market timing, or biggest risk. Never generic.",
+    "actions": [
+      {{
+        "priority": 1,
+        "title": "3-6 word action title",
+        "what": "One sentence — exactly what the founder should do",
+        "why": "One sentence — which specific finding from the analysis makes this urgent. Must reference a concrete data point, competitor name, score, or insight — never vague reasoning",
+        "timeframe": "one of: This Week, This Month, Next 90 Days, Next 6 Months",
+        "category": "one of: Revenue, Defense, Growth, Product, Validation, Hiring"
+      }}
+    ]
+  }}
 }}
 
 Rules:
 - Return ONLY valid JSON — no markdown, no code blocks, no prose outside the JSON
+- "summary" must be specific to this idea and analysis — never generic startup advice
+- "summary" must be 2-3 sentences and mention at least one concrete signal from the analysis
 - Generate exactly 4-6 actions — never fewer than 4, never more than 6
 - Actions must be ordered by urgency — most time-sensitive first
 - Every "why" field must reference something specific from the analysis data provided — a competitor name, a TAM figure, a threat label, a persona name, a funding signal, a SWOT point. Never write generic reasoning like "this is important for growth"
@@ -189,13 +230,14 @@ Analysis Findings:
         try:
             response = call_llm(prompt, model=model, fallback_model=fallback)
             raw = str(response)
-            parsed = _parse_action_plan(raw)
-            action_plan = _sanitize_action_plan(parsed)
+            parsed = _parse_report_payload(raw)
+            report = _sanitize_report_payload(parsed)
         except Exception as exc:
-            logger.warning("Reporter failed to generate action plan: %s", exc)
-            action_plan = dict(SAFE_FALLBACK_PLAN)
+            logger.warning("Reporter failed to generate executive summary and action plan: %s", exc)
+            report = _build_fallback_report()
 
         return {
-            "action_plan": action_plan,
+            "summary": report["summary"],
+            "action_plan": report["action_plan"],
             "model_used": model,
         }
