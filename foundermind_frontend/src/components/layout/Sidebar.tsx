@@ -8,6 +8,7 @@ import {
   LineChart,
   BarChart3,
   Activity,
+  Scale,
   Shield,
   LogOut,
   Settings,
@@ -41,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Admin", icon: Shield, href: "/dashboard/admin" },
   { label: "Market Models", icon: BarChart3, href: "#" },
   { label: "Drift Analytics", icon: Activity, href: "/dashboard/drift" },
+  { label: "Comparisons", icon: Scale, href: "/dashboard/comparisons" },
 ]
 
 export function Sidebar({

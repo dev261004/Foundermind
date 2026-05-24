@@ -1,6 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from apps.analytics.agent_metrics import AgentMetricsEngine
+from apps.analytics.comparison_service import ComparisonService
 from apps.analytics.services import DriftDashboardService
 from apps.analytics.weight_recalibrator import WeightRecalibrator
 from core.permissions import admin_required
@@ -33,6 +34,29 @@ def drift_dashboard(request):
 def drift_dashboard_for_type(request, idea_type):
 
     return Response(DriftDashboardService.build_dashboard(idea_type=idea_type))
+
+
+@api_view(["GET"])
+@admin_required
+def comparison_options(request):
+
+    return Response(ComparisonService.get_options())
+
+
+@api_view(["POST"])
+@admin_required
+def compare_analyses(request):
+
+    run_ids = request.data.get("run_ids") or []
+    return Response(ComparisonService.compare_analyses(run_ids))
+
+
+@api_view(["POST"])
+@admin_required
+def compare_ideas(request):
+
+    idea_ids = request.data.get("idea_ids") or []
+    return Response(ComparisonService.compare_ideas(idea_ids))
 
 
 @api_view(["POST"])
