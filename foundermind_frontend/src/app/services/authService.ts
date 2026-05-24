@@ -11,6 +11,7 @@ export interface LoginResponse {
   access_token: string
   refresh_token: string
   email: string
+  role?: "user" | "admin"
 }
 
 export interface RegisterRequest {
@@ -23,6 +24,7 @@ export interface RegisterResponse {
   access_token: string
   refresh_token: string
   email: string
+  role?: "user" | "admin"
 }
 
 export interface ForgotPasswordRequest {

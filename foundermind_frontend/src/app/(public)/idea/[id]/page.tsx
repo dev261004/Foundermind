@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import IdeaAnalysisPage from "@/components/idea/IdeaAnalysisPage"
 
 interface PageProps {
@@ -9,5 +10,9 @@ interface PageProps {
 export default async function Page({ params }: PageProps) {
   const { id } = await params
 
-  return <IdeaAnalysisPage ideaId={id} />
+  return (
+    <Suspense fallback={null}>
+      <IdeaAnalysisPage ideaId={id} />
+    </Suspense>
+  )
 }

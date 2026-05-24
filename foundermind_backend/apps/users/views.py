@@ -33,18 +33,20 @@ def register(request):
 
     user = User(
         email=email,
-        password_hash=hashed
+        password_hash=hashed,
+        role="user",
     )
     user.save()
 
-    access = generate_access_token(email)
-    refresh = generate_refresh_token(email)
+    access = generate_access_token(email, user.role)
+    refresh = generate_refresh_token(email, user.role)
 
     return Response({
         "message": "Registered successfully",
         "access_token": access,
         "refresh_token": refresh,
-        "email": email
+        "email": email,
+        "role": user.role,
     })
 
 
@@ -64,13 +66,15 @@ def login(request):
     if not verify_password(password, user.password_hash):
         return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
 
-    access = generate_access_token(email)
-    refresh = generate_refresh_token(email)
+    role = user.role or "user"
+    access = generate_access_token(email, role)
+    refresh = generate_refresh_token(email, role)
 
     return Response({
         "access_token": access,
         "refresh_token": refresh,
-        "email": email
+        "email": email,
+        "role": role,
     })
 
 

@@ -1,11 +1,19 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, Suspense, useState } from "react"
 import { motion } from "framer-motion"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuthStore } from "@/store/useAuthStore"
 
 export default function LoginPage() {
+    return (
+        <Suspense fallback={null}>
+            <LoginContent />
+        </Suspense>
+    )
+}
+
+function LoginContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const { login, register, isLoading, error, clearError } = useAuthStore()

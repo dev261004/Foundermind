@@ -8,6 +8,7 @@ import {
   LineChart,
   BarChart3,
   Activity,
+  Shield,
   LogOut,
   Settings,
   User,
@@ -37,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { label: "Ideas", icon: Lightbulb, href: "/dashboard/ideas" },
   { label: "Analytics", icon: LineChart, href: "/dashboard/analytics" },
+  { label: "Admin", icon: Shield, href: "/dashboard/admin" },
   { label: "Market Models", icon: BarChart3, href: "#" },
   { label: "Drift Monitor", icon: Activity, href: "/dashboard/drift" },
 ]

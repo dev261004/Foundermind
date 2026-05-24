@@ -7,9 +7,10 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
 
 
-def generate_access_token(user_email):
+def generate_access_token(user_email, role="user"):
     payload = {
         "email": user_email,
+        "role": role,
         "type": "access",
         "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=30),
         "iat": datetime.datetime.utcnow()
@@ -17,9 +18,10 @@ def generate_access_token(user_email):
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def generate_refresh_token(user_email):
+def generate_refresh_token(user_email, role="user"):
     payload = {
         "email": user_email,
+        "role": role,
         "type": "refresh",
         "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7),
         "iat": datetime.datetime.utcnow()

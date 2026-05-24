@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "apps.agent.apps.AgentConfig",
     "apps.users",
     "apps.ideas",
+    "apps.analytics",
 ]
 
 # ---------- MIDDLEWARE ----------

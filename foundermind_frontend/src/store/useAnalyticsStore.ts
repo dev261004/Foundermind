@@ -1,20 +1,24 @@
 import { create } from "zustand"
-import { AnalyticsMetrics } from "@/types/analytics"
+import { AnalyticsSummary } from "@/types/analytics"
 
 interface AnalyticsState {
-  metrics: AnalyticsMetrics | null
+  summary: AnalyticsSummary | null
   isLoading: boolean
+  error: string | null
 
-  setMetrics: (data: AnalyticsMetrics) => void
+  setSummary: (data: AnalyticsSummary) => void
   setLoading: (value: boolean) => void
+  setError: (message: string | null) => void
   reset: () => void
 }
 
 export const useAnalyticsStore = create<AnalyticsState>((set) => ({
-  metrics: null,
+  summary: null,
   isLoading: false,
+  error: null,
 
-  setMetrics: (data) => set({ metrics: data }),
+  setSummary: (data) => set({ summary: data }),
   setLoading: (value) => set({ isLoading: value }),
-  reset: () => set({ metrics: null }),
+  setError: (message) => set({ error: message }),
+  reset: () => set({ summary: null, error: null }),
 }))

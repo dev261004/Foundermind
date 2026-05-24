@@ -17,6 +17,7 @@ class JWTAuthenticationMiddleware:
 
             if payload:
                 request.user_email = payload["email"]
+                request.user_role = payload.get("role", "user")
             else:
                 return Response(
                     {"error": "Invalid or expired token"},

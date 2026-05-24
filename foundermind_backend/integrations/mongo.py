@@ -12,7 +12,18 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "foundermind")
 
 
 def init_mongo():
-    uri_with_ssl = MONGO_URI.rstrip('/') + '?tlsInsecure=true&retryWrites=false'
+    if not MONGO_URI:
+        return
+
+    base_uri, separator, query = MONGO_URI.partition("?")
+    if base_uri.count("/") == 2:
+        base_uri = f"{base_uri}/"
+
+    existing_query = f"?{query}" if separator else ""
+    option_separator = "&" if existing_query else "?"
+    uri_with_ssl = (
+        f"{base_uri}{existing_query}{option_separator}tlsInsecure=true&retryWrites=false"
+    )
     
     connect(
         db=MONGO_DB_NAME,

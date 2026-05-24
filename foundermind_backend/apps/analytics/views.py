@@ -1,9 +1,12 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from apps.analytics.agent_metrics import AgentMetricsEngine
+from apps.analytics.weight_recalibrator import WeightRecalibrator
+from core.permissions import admin_required
 
 
 @api_view(["GET"])
+@admin_required
 def analytics_summary(request):
 
     return Response({
@@ -16,10 +19,8 @@ def analytics_summary(request):
     })
 
 
-from apps.analytics.weight_recalibrator import WeightRecalibrator
-
-
 @api_view(["POST"])
+@admin_required
 def recalibrate_weights(request):
 
     idea_type = request.data.get("idea_type")

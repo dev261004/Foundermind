@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useMemo, useState } from "react"
+import { FormEvent, Suspense, useMemo, useState } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { useSearchParams } from "next/navigation"
@@ -18,6 +18,14 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ForgotPasswordContent />
+    </Suspense>
+  )
+}
+
+function ForgotPasswordContent() {
   const searchParams = useSearchParams()
   const email = searchParams.get("email")?.trim() || ""
   const hasEmail = Boolean(email)

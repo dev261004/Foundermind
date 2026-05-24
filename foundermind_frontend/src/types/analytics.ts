@@ -1,4 +1,17 @@
-// /types/analytics.ts
+export interface AnalyticsSummary {
+  average_overall_score: number
+  score_by_idea_type: Record<string, number>
+  tool_failure_rate: Record<string, number>
+  self_healing_ratio: number
+  confidence_calibration_error: number
+  intelligence_index: number
+}
+
+export interface RecalibrationResult {
+  status: "updated" | "no_data" | "invalid_type" | string
+  idea_type?: string
+  new_weights?: Record<string, number>
+}
 
 export interface RollingMetricPoint {
   date: string

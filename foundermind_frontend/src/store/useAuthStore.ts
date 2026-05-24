@@ -6,6 +6,7 @@ import { authService } from "@/app/services/authService"
 
 interface AuthState {
   email: string | null
+  role: "user" | "admin" | null
   accessToken: string | null
   refreshToken: string | null
   isLoading: boolean
@@ -21,6 +22,7 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       email: null,
+      role: null,
       accessToken: null,
       refreshToken: null,
       isLoading: false,
@@ -32,6 +34,7 @@ export const useAuthStore = create<AuthState>()(
           const data = await authService.login({ email, password })
           set({
             email: data.email,
+            role: data.role ?? "user",
             accessToken: data.access_token,
             refreshToken: data.refresh_token,
             isLoading: false,
@@ -52,6 +55,7 @@ export const useAuthStore = create<AuthState>()(
           const data = await authService.register({ email, password })
           set({
             email: data.email,
+            role: data.role ?? "user",
             accessToken: data.access_token,
             refreshToken: data.refresh_token,
             isLoading: false,
@@ -69,6 +73,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () =>
         set({
           email: null,
+          role: null,
           accessToken: null,
           refreshToken: null,
           isLoading: false,
@@ -82,6 +87,7 @@ export const useAuthStore = create<AuthState>()(
       // Only persist tokens and email — not transient loading/error state
       partialize: (state) => ({
         email: state.email,
+        role: state.role,
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
       }),
