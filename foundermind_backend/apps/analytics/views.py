@@ -1,6 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from apps.analytics.agent_metrics import AgentMetricsEngine
+from apps.analytics.services import DriftDashboardService
 from apps.analytics.weight_recalibrator import WeightRecalibrator
 from core.permissions import admin_required
 
@@ -17,6 +18,21 @@ def analytics_summary(request):
         "confidence_calibration_error": AgentMetricsEngine.confidence_calibration_error(),
         "intelligence_index": AgentMetricsEngine.intelligence_index()
     })
+
+
+@api_view(["GET"])
+@admin_required
+def drift_dashboard(request):
+
+    idea_type = request.query_params.get("idea_type")
+    return Response(DriftDashboardService.build_dashboard(idea_type=idea_type))
+
+
+@api_view(["GET"])
+@admin_required
+def drift_dashboard_for_type(request, idea_type):
+
+    return Response(DriftDashboardService.build_dashboard(idea_type=idea_type))
 
 
 @api_view(["POST"])

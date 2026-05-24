@@ -40,7 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Analytics", icon: LineChart, href: "/dashboard/analytics" },
   { label: "Admin", icon: Shield, href: "/dashboard/admin" },
   { label: "Market Models", icon: BarChart3, href: "#" },
-  { label: "Drift Monitor", icon: Activity, href: "/dashboard/drift" },
+  { label: "Drift Analytics", icon: Activity, href: "/dashboard/drift" },
 ]
 
 export function Sidebar({

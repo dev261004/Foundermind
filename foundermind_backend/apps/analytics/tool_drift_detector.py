@@ -15,11 +15,20 @@ class ToolDriftDetector:
 
         drift_results = {}
 
-        for tool, recent_rate in recent.items():
+        for tool in sorted(set(recent) | set(historical)):
 
+            recent_rate = recent.get(tool)
             historical_rate = historical.get(tool)
 
-            if historical_rate is None:
+            if recent_rate is None or historical_rate is None:
+                drift_results[tool] = {
+                    "status": "insufficient_data",
+                    "drift": 0,
+                    "recent_success": recent_rate,
+                    "historical_success": historical_rate,
+                    "threshold": TOOL_DRIFT_THRESHOLD,
+                    "window_size": WINDOW_SIZE,
+                }
                 continue
 
             drift = historical_rate - recent_rate
@@ -29,12 +38,18 @@ class ToolDriftDetector:
                     "status": "drift_detected",
                     "drift": round(drift, 3),
                     "recent_success": recent_rate,
-                    "historical_success": historical_rate
+                    "historical_success": historical_rate,
+                    "threshold": TOOL_DRIFT_THRESHOLD,
+                    "window_size": WINDOW_SIZE,
                 }
             else:
                 drift_results[tool] = {
                     "status": "stable",
-                    "drift": round(drift, 3)
+                    "drift": round(drift, 3),
+                    "recent_success": recent_rate,
+                    "historical_success": historical_rate,
+                    "threshold": TOOL_DRIFT_THRESHOLD,
+                    "window_size": WINDOW_SIZE,
                 }
 
         return drift_results

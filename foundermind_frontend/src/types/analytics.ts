@@ -8,9 +8,15 @@ export interface AnalyticsSummary {
 }
 
 export interface RecalibrationResult {
-  status: "updated" | "no_data" | "invalid_type" | string
+  status: "updated" | "unchanged" | "no_data" | "invalid_type" | string
   idea_type?: string
+  previous_weights?: Record<string, number>
   new_weights?: Record<string, number>
+  changes?: Record<string, number>
+  section_averages?: Record<string, number>
+  cleaned_sections?: string[]
+  reason?: string
+  updated_at?: string
 }
 
 export interface RollingMetricPoint {
