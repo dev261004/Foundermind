@@ -266,8 +266,8 @@ export default function DashboardIdeasPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0C10] text-white selection:bg-indigo-500/30 overflow-x-hidden font-sans antialiased">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-12">
+    <div className="text-white selection:bg-indigo-500/30 font-sans antialiased">
+      <div className="flex w-full max-w-6xl flex-col gap-8 py-2">
         {/* Header Hero Section */}
         <section className="relative rounded-[32px] border border-white/10 bg-gradient-to-br from-[#12141D] to-[#0d121c] shadow-2xl">
           {/* Background blobs wrapper with overflow hidden to prevent tooltips from being cut */}
@@ -554,7 +554,7 @@ export default function DashboardIdeasPage() {
             </AnimatePresence>
           </section>
         )}
-      </main>
+      </div>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
