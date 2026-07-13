@@ -1,6 +1,7 @@
 "use client"
 
 import { Github, Twitter, Linkedin } from "lucide-react"
+import Link from "next/link"
 
 export default function Footer() {
 
@@ -72,6 +73,7 @@ export default function Footer() {
                             <li>Startup Guides</li>
                             <li>Government Grants</li>
                             <li>Blog</li>
+                            <li><Link href="/dashboard/funding">Funding</Link></li>
 
                         </ul>
 

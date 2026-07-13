@@ -15,6 +15,7 @@ import {
   User,
   PanelLeftClose,
   PanelLeftOpen,
+  Landmark,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SidebarItem } from "./SidebarItem"
@@ -39,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { label: "Ideas", icon: Lightbulb, href: "/dashboard/ideas" },
   { label: "Analytics", icon: LineChart, href: "/dashboard/analytics" },
+  { label: "Funding", icon: Landmark, href: "/dashboard/funding" },
   { label: "Admin", icon: Shield, href: "/dashboard/admin" },
   { label: "Market Models", icon: BarChart3, href: "#" },
   { label: "Drift Analytics", icon: Activity, href: "/dashboard/drift" },
