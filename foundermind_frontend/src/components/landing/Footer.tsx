@@ -70,7 +70,7 @@ export default function Footer() {
                         <ul className="footer-links">
 
                             <li>Documentation</li>
-                            <li><Link href="/startup-guide">Startup Guides</Link></li>
+                            <li><Link href="/learn">Learning Center</Link></li>
                             <li>Government Grants</li>
                             <li>Blog</li>
                             <li><Link href="/dashboard/funding">Funding</Link></li>
