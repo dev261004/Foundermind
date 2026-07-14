@@ -11,12 +11,6 @@ import { motion } from "framer-motion";
 export default function StartupGuidePage() {
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white selection:bg-indigo-500/30">
-      {/* Background Effects */}
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-      </div>
-
       <div className="relative z-10 max-w-4xl mx-auto px-6 py-16 md:py-24">
         {/* Navigation */}
         <Link 
@@ -37,7 +31,7 @@ export default function StartupGuidePage() {
           <div className="inline-flex items-center justify-center p-3 bg-white/5 rounded-2xl mb-6 ring-1 ring-white/10 shadow-[0_0_30px_rgba(255,255,255,0.05)]">
             <BookOpen className="w-6 h-6 text-indigo-400" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-zinc-400">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white">
             Founder's Playbook
           </h1>
           <p className="text-xl text-zinc-400 max-w-2xl">
@@ -60,8 +54,7 @@ export default function StartupGuidePage() {
             prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:text-indigo-300 hover:prose-a:underline
             prose-table:border-collapse prose-table:w-full prose-table:text-sm prose-table:my-8
             prose-th:bg-white/5 prose-th:p-4 prose-th:text-left prose-th:font-medium prose-th:text-white prose-th:border prose-th:border-white/10
-            prose-td:p-4 prose-td:border prose-td:border-white/10 prose-td:text-zinc-300
-            bg-white/[0.02] p-8 md:p-12 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm"
+            prose-td:p-4 prose-td:border prose-td:border-white/10 prose-td:text-zinc-300"
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {startupGuideContent}
