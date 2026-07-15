@@ -16,8 +16,8 @@ export default function LearnPage() {
     <div className="min-h-screen bg-[#0A0A0A] text-white selection:bg-indigo-500/30">
       <div className="relative z-10 max-w-4xl mx-auto px-6 py-16 md:py-24">
         {/* Navigation */}
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="inline-flex items-center text-sm font-medium text-zinc-400 hover:text-white transition-colors mb-12 group"
         >
           <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
@@ -25,7 +25,7 @@ export default function LearnPage() {
         </Link>
 
         {/* Hero Section */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -46,28 +46,26 @@ export default function LearnPage() {
         <div className="flex space-x-2 mb-8 bg-white/5 p-1 rounded-xl w-fit border border-white/10">
           <button
             onClick={() => setActiveTab("startup")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeTab === "startup" 
-                ? "bg-white/10 text-white shadow-sm" 
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === "startup"
+                ? "bg-white/10 text-white shadow-sm"
                 : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
-            }`}
+              }`}
           >
             Startup Guide
           </button>
           <button
             onClick={() => setActiveTab("funding")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeTab === "funding" 
-                ? "bg-white/10 text-white shadow-sm" 
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === "funding"
+                ? "bg-white/10 text-white shadow-sm"
                 : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
-            }`}
+              }`}
           >
             Funding Glossary
           </button>
         </div>
 
         {/* Content */}
-        <motion.div 
+        <motion.div
           key={activeTab}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
